@@ -28,22 +28,22 @@ abbr hcm --set-cursor 'hg commit --message "%"'
 
 abbr hct 'hg continue'
 
-abbr hd 'hg diff --color always --pager always'
+abbr hd 'hg diff | delta --side-by-side'
 abbr hdn 'hg diff % | nvim'
 
 abbr hev 'hg evolve'
 abbr heva 'hg evolve --abort'
 abbr hevc 'hg evolve --continue'
 
-abbr hex 'hg export --color always --pager always'
+abbr hex 'hg export | delta --side-by-side'
 
 abbr hf 'hg fix'
 
 # hg all
-abbr haa 'fixts; hg fix; hg amend'
-abbr hauc 'fixts; hg fix; hg amend; hg upload chain'
-abbr haps 'fixts; hg fix; hg amend; hg upload chain; presub'
-abbr haml 'fixts; hg fix; hg amend; hg upload chain; presub; hml'
+abbr haa 'fixts; hg fix; fixbuild; hg amend'
+abbr hauc 'fixts; hg fix; fixbuild; hg amend; hg upload chain'
+abbr haps 'fixts; hg fix; fixbuild; hg amend; hg upload chain; presub'
+abbr haml 'fixts; hg fix; fixbuild; hg amend; hg upload chain; presub; hmail'
 
 abbr hhe 'hg histedit'
 abbr hhea 'hg histedit --abort'

@@ -86,6 +86,7 @@ if status is-interactive
     abbr --set-cursor ecrs --position anywhere 'entr -crs \'%\''
     abbr --set-cursor fmtn --position anywhere "| numfmt --format \"%'.2f\""
     abbr --set-cursor psa --position anywhere 'ps aux | rg -P "%"'
+    abbr --set-cursor wcl --position anywhere 'wc -l'
 
     # Perl abbreviations
     abbr --set-cursor pc --position anywhere "perl -E 'say ( % )' | numfmt --format \"%'.2f\""

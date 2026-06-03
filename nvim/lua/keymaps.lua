@@ -177,3 +177,7 @@ vim.api.nvim_create_autocmd("TextYankPost", {
 vim.cmd([[let @p="^yss'$a,\<Esc>F/;ldT'=="]])
 
 -- vim: ts=2 sts=2 sw=2 et
+
+-- Move up and down visual lines (wrapped text) by default, but use logical lines with a count
+vim.keymap.set({ "n", "v" }, "j", "v:count == 0 ? 'gj' : 'j'", { expr = true, silent = true })
+vim.keymap.set({ "n", "v" }, "k", "v:count == 0 ? 'gk' : 'k'", { expr = true, silent = true })

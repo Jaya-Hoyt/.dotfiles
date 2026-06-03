@@ -19,7 +19,7 @@ vim.o.showmode = false
 --  Remove this option if you want your OS clipboard to remain independent.
 --  See `:help 'clipboard'`
 vim.schedule(function()
-  vim.o.clipboard = "unnamedplus"
+	vim.o.clipboard = "unnamedplus"
 end)
 
 -- Enable break indent
@@ -71,47 +71,48 @@ vim.o.scrolloff = 10
 vim.o.confirm = true
 
 vim.opt.expandtab = true -- use spaces instead of tab characters
-vim.opt.tabstop = 2      -- a <Tab> looks like 2 spaces
-vim.opt.shiftwidth = 2   -- indentation uses 2 spaces
-vim.opt.softtabstop = 2  -- <Tab>/<BS> behave like 2 spaces
+vim.opt.tabstop = 2 -- a <Tab> looks like 2 spaces
+vim.opt.shiftwidth = 2 -- indentation uses 2 spaces
+vim.opt.softtabstop = 2 -- <Tab>/<BS> behave like 2 spaces
 
 -- Blocklist of Language Server (LS) errors/warnings
 local codes_to_hide = {
-  -- Marksman LS (markdown)
-  "MD030", -- Spaces after list markers
-  "MD007", -- Unordered list indentatio
-  "MD013", -- Line length
-  "MD034", -- Bare URL used
-  -- Cider LS
-  "Cannot find module",
+	-- Marksman LS (markdown)
+	"MD030", -- Spaces after list markers
+	"MD007", -- Unordered list indentatio
+	"MD013", -- Line length
+	"MD034", -- Bare URL used
+	"MD012", -- No multiple blank lines
+	-- Cider LS
+	"Cannot find module",
 }
 
 -- Check if a diagnostic code should be filtered out
 local function is_blocked(diagnostic, blocklist)
-  for _, block_code in ipairs(blocklist) do
-    local diag_code = tostring(diagnostic.code or "")
-    local diag_msg = diagnostic.message or ""
-    if diag_code == block_code or string.find(diag_msg, block_code) then
-      return true
-    end
-  end
-  return false
+	for _, block_code in ipairs(blocklist) do
+		local diag_code = tostring(diagnostic.code or "")
+		local diag_msg = diagnostic.message or ""
+		if diag_code == block_code or string.find(diag_msg, block_code) then
+			return true
+		end
+	end
+	return false
 end
 
 -- Diagnostic filter wrapper
 local function filter_handler(orig_handler)
-  return {
-    show = function(namespace, bufnr, diagnostics, opts)
-      local filtered = {}
-      for _, diag in ipairs(diagnostics) do
-        if not is_blocked(diag, codes_to_hide) then
-          table.insert(filtered, diag)
-        end
-      end
-      orig_handler.show(namespace, bufnr, filtered, opts)
-    end,
-    hide = orig_handler.hide,
-  }
+	return {
+		show = function(namespace, bufnr, diagnostics, opts)
+			local filtered = {}
+			for _, diag in ipairs(diagnostics) do
+				if not is_blocked(diag, codes_to_hide) then
+					table.insert(filtered, diag)
+				end
+			end
+			orig_handler.show(namespace, bufnr, filtered, opts)
+		end,
+		hide = orig_handler.hide,
+	}
 end
 
 vim.diagnostic.handlers.virtual_text = filter_handler(vim.diagnostic.handlers.virtual_text)

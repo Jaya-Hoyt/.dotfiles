@@ -1,0 +1,16 @@
+#!/usr/bin/env sh
+# Launcher for kokoro-server.py — runs it with the dedicated venv at ~/kokoro-tts/.venv
+#
+# First-time setup on a new machine: run ~/.dotfiles/kokoro-setup
+# (installs brew deps + venv + Python deps and downloads the model files).
+set -e
+
+VENV="$HOME/kokoro-tts/.venv/bin/python"
+SCRIPT="$(cd "$(dirname "$0")" && pwd)/kokoro-server.py"
+
+if [ ! -x "$VENV" ]; then
+  echo "❌ venv not found at $VENV — run ~/.dotfiles/kokoro-setup first." >&2
+  exit 1
+fi
+
+exec "$VENV" "$SCRIPT"

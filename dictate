@@ -4,7 +4,18 @@
 set MODEL_PATH "$HOME/ggml-large-v3-turbo-q5_0.bin"
 set AUDIO_FILE "/tmp/dictation.wav"
 
-# 1. Download the Whisper large-v3-turbo (q5_0) model if it doesn't exist
+# 1. Install required Homebrew tools if missing
+#    rec <- sox (recording), whisper-cli <- whisper-cpp (transcription)
+for dep in sox:rec whisper-cpp:whisper-cli
+    set -l formula (string split ':' $dep)[1]
+    set -l bin (string split ':' $dep)[2]
+    if not command -q $bin
+        echo "Installing $formula (provides $bin)..."
+        brew install $formula
+    end
+end
+
+# 2. Download the Whisper large-v3-turbo (q5_0) model if it doesn't exist
 if not test -f "$MODEL_PATH"
     echo "Downloading Whisper large-v3-turbo (q5_0) model (~550MB)..."
     curl -L -o "$MODEL_PATH" https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin
@@ -12,7 +23,7 @@ end
 
 echo "🔴 Recording... Press [ENTER] to stop."
 
-# 2. Start recording (records at native Mac Hz, resamples to 16k, suppresses warnings)
+# 3. Start recording (records at native Mac Hz, resamples to 16k, suppresses warnings)
 rec -q -c 1 -b 16 -e signed-integer "$AUDIO_FILE" rate 16000 2>/dev/null &
 set REC_PID $last_pid
 
@@ -26,7 +37,7 @@ wait $REC_PID 2>/dev/null
 echo "⚙️  Transcribing..."
 
 set transcript (whisper-cli -m "$MODEL_PATH" -f "$AUDIO_FILE" -nt 2>/dev/null | string collect)
-   printf "%s" (string trim "$transcript") | tty-copy
+printf "%s" (string trim "$transcript") | tty-copy
 
 echo "✅ Copied to clipboard!"
 

@@ -1,0 +1,74 @@
+#!/usr/bin/env fish
+
+# First-time setup for the Kokoro TTS server (kokoro-server.py).
+#
+# Idempotent: safe to re-run. It will skip anything already in place.
+#   - Homebrew deps: uv, espeak-ng, portaudio
+#   - Python venv at ~/kokoro-tts/.venv (CPython 3.12 via uv)
+#   - Python deps from kokoro-requirements.txt
+#   - Model files into ~/kokoro-tts/ (kokoro-v1.0.onnx, voices-v1.0.bin)
+#
+# After this finishes, start the server with: ~/.dotfiles/kokoro-server
+
+set -l kokoro_dir "$HOME/kokoro-tts"
+set -l venv_python "$kokoro_dir/.venv/bin/python"
+set -l script_dir (dirname (status --current-filename))
+set -l requirements "$script_dir/kokoro-requirements.txt"
+set -l model "$kokoro_dir/kokoro-v1.0.onnx"
+set -l voices "$kokoro_dir/voices-v1.0.bin"
+set -l release_base "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0"
+
+function _abort
+    echo "❌ $argv" >&2
+    exit 1
+end
+
+# 1. Homebrew dependencies ---------------------------------------------------
+if not command -q brew
+    _abort "Homebrew not found. Install it from https://brew.sh first."
+end
+
+for pkg in uv espeak-ng portaudio
+    if brew list --versions $pkg >/dev/null 2>&1
+        echo "✅ brew: $pkg already installed"
+    else
+        echo "📦 brew install $pkg"
+        brew install $pkg; or _abort "failed to install $pkg"
+    end
+end
+
+# 2. Python virtualenv -------------------------------------------------------
+if test -x "$venv_python"
+    echo "✅ venv already exists at $kokoro_dir/.venv"
+else
+    echo "🐍 Creating venv at $kokoro_dir/.venv (Python 3.12)"
+    uv venv --python 3.12 "$kokoro_dir/.venv"; or _abort "failed to create venv"
+end
+
+# 3. Python dependencies -----------------------------------------------------
+if not test -f "$requirements"
+    _abort "requirements file not found at $requirements"
+end
+echo "📥 Installing Python deps from kokoro-requirements.txt"
+uv pip install --python "$venv_python" -r "$requirements"; or _abort "pip install failed"
+
+# 4. Model files -------------------------------------------------------------
+mkdir -p "$kokoro_dir"
+
+if test -f "$model"
+    echo "✅ model already present: kokoro-v1.0.onnx"
+else
+    echo "⬇️  Downloading kokoro-v1.0.onnx (~310M)"
+    curl -fL --progress-bar -o "$model" "$release_base/kokoro-v1.0.onnx"; or _abort "failed to download model"
+end
+
+if test -f "$voices"
+    echo "✅ voices already present: voices-v1.0.bin"
+else
+    echo "⬇️  Downloading voices-v1.0.bin (~27M)"
+    curl -fL --progress-bar -o "$voices" "$release_base/voices-v1.0.bin"; or _abort "failed to download voices"
+end
+
+echo ""
+echo "🎉 Kokoro setup complete. Start the server with:"
+echo "   $script_dir/kokoro-server"

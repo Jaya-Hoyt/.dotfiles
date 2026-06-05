@@ -1,0 +1,28 @@
+#!/usr/bin/env fish
+
+# Send text to the Kokoro TTS server (kokoro-server.py) on 127.0.0.1:5050.
+#
+#   speak                # speaks the current clipboard (pbpaste)
+#   speak hello there    # speaks the given words
+#   echo hi | speak      # speaks piped stdin
+#   speak stop           # interrupts whatever is currently playing
+#
+# NOTE: lives in ~/.local/bin (ahead of /opt/homebrew/bin on PATH) so it
+# shadows espeak-ng's unrelated `speak` binary.
+
+set -l py 'import socket, sys
+data = sys.stdin.buffer.read()
+with socket.create_connection(("127.0.0.1", 5050)) as s:
+    s.sendall(data)
+    s.shutdown(socket.SHUT_WR)'
+
+if test (count $argv) -eq 1; and test "$argv[1]" = stop
+    printf '!!!STOP!!!' | command python3 -c "$py"
+else if test (count $argv) -gt 0
+    printf '%s' (string join ' ' -- $argv) | command python3 -c "$py"
+else if not isatty stdin
+    # stdin flows straight through to preserve newlines/paragraphs
+    command python3 -c "$py"
+else
+    pbpaste | command python3 -c "$py"
+end

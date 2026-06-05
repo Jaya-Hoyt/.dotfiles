@@ -38,3 +38,5 @@ zshrc_local
 .settings/
 workspace/
 .session.vim
+
+**/.claude/settings.local.json

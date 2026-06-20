@@ -1,20 +1,76 @@
-#!/usr/bin/env bash
+#!/bin/bash
+# Machine setup script for macOS using default Bash (3.2 compatible)
+set -euo pipefail
 
-FISH_VERSION="fish-3.7.1"
+BASEDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-git submodule update --init --recursive
+# Ensure local bin is in PATH for the duration of this script
+export PATH="$HOME/.local/bin:$PATH"
 
-if test ! -d ${FISH_VERSION}; then tar -xf ${FISH_VERSION}.tar.xz; fi
-if test ! -f ~/.zshrc_local; then touch ~/.zshrc_local; fi
-if test ! -f ~/.bashrc_local; then touch ~/.bashrc_local; fi
-if test ! -f ~/.tmux.local.conf; then touch ~/.tmux.local.conf; fi
-if test ! -f ~/.config/fish/config.local.fish; then touch ~/.config/fish/config.local.fish; fi
-if test ! -f ~/.config/nvim/lua/init_local.lua; then touch ~/.config/nvim/lua/init_local.lua; fi
-if test ! -f proxy_url; then touch proxy_url; echo "proxy_url=" > proxy_url; fi
-if test ! -f ~/.gitignore; then git config --global core.excludesFile ~/.gitignore; fi
-if test ! -f ~/.tmux/plugins/tpm; then
+echo "🔄 Updating submodules..."
+git -C "$BASEDIR" submodule update --init --recursive
+
+echo "📝 Creating local configuration files if missing..."
+touch ~/.zshrc_local
+touch ~/.bashrc_local
+touch ~/.tmux.local.conf
+mkdir -p ~/.config/fish
+touch ~/.config/fish/config.local.fish
+mkdir -p ~/.config/nvim/lua
+touch ~/.config/nvim/lua/init_local.lua
+if [ ! -f "$BASEDIR/proxy_url" ]; then
+    echo "proxy_url=" > "$BASEDIR/proxy_url"
+fi
+
+if [ ! -f ~/.gitignore ]; then
+    echo "⚙️  Configuring global git excludes..."
+    git config --global core.excludesFile ~/.gitignore
+fi
+
+# 1. Install Homebrew if missing
+if ! command -v brew >/dev/null 2>&1; then
+    echo "🍺 Installing Homebrew..."
+    NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+fi
+
+# Set up Homebrew environment for this script execution
+if [ -d "/opt/homebrew/bin" ]; then
+    eval "$(/opt/homebrew/bin/brew shellenv)"
+elif [ -d "/usr/local/bin" ]; then
+    eval "$(/usr/local/bin/brew shellenv)"
+fi
+
+# 2. Install Brewfile dependencies
+if [ -f "$BASEDIR/Brewfile" ]; then
+    echo "📦 Installing Homebrew packages from Brewfile..."
+    brew bundle --file="$BASEDIR/Brewfile"
+fi
+
+# 3. Install mise if missing
+if ! command -v mise >/dev/null 2>&1; then
+    echo "🛠️  Installing mise..."
+    curl -fsSL https://mise.run | sh
+fi
+
+# 4. Run Dotbot linking
+echo "🔗 Running Dotbot configuration link..."
+"$BASEDIR/install"
+
+# 5. Install mise tools (non-interactive)
+echo "📥 Installing tools configured in mise..."
+mise install --yes
+
+# 6. Install Tmux Plugin Manager (TPM)
+if [ ! -d ~/.tmux/plugins/tpm ]; then
+    echo "🔌 Installing Tmux Plugin Manager..."
     git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
     ~/.tmux/plugins/tpm/scripts/install_plugins.sh
 fi
 
-./install
+# 7. Open Karabiner Elements to initialize config
+if [ -d "/Applications/Karabiner-Elements.app" ]; then
+    echo "⌨️  Opening Karabiner-Elements to register configuration..."
+    open -a "Karabiner-Elements"
+fi
+
+echo "🎉 Dotfiles setup complete!"

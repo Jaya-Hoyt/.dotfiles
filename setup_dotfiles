@@ -67,7 +67,22 @@ if [ ! -d ~/.tmux/plugins/tpm ]; then
     ~/.tmux/plugins/tpm/scripts/install_plugins.sh
 fi
 
-# 7. Open Karabiner Elements to initialize config
+# 7. Restore Keyboard Maestro Macros
+if [ -f "$BASEDIR/KeyboardMaestroMacros.kmsync" ]; then
+    echo "🎹 Restoring Keyboard Maestro Macros..."
+    killall "Keyboard Maestro" 2>/dev/null || true
+    killall "Keyboard Maestro Engine" 2>/dev/null || true
+    
+    mkdir -p "$HOME/Library/Application Support/Keyboard Maestro"
+    cp "$BASEDIR/KeyboardMaestroMacros.kmsync" "$HOME/Library/Application Support/Keyboard Maestro/Keyboard Maestro Macros.plist"
+    
+    if [ -d "/Applications/Keyboard Maestro.app" ]; then
+        echo "🎹 Opening Keyboard Maestro to register configuration..."
+        open -a "Keyboard Maestro"
+    fi
+fi
+
+# 8. Open Karabiner Elements to initialize config
 if [ -d "/Applications/Karabiner-Elements.app" ]; then
     echo "⌨️  Opening Karabiner-Elements to register configuration..."
     open -a "Karabiner-Elements"

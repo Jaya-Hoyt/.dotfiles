@@ -48,24 +48,36 @@ if [ ! -f ~/.gitignore ]; then
     git config --global core.excludesFile ~/.gitignore
 fi
 
-# 1. Install Homebrew if missing
-if ! command -v brew >/dev/null 2>&1; then
-    echo "🍺 Installing Homebrew..."
-    NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+# 1. Install OS-specific package manager and dependencies
+OS_TYPE="$(uname -s)"
+if [ "$OS_TYPE" = "Darwin" ]; then
+    if ! command -v brew >/dev/null 2>&1; then
+        echo "🍺 Installing Homebrew..."
+        NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    fi
+
+    # Set up Homebrew environment for this script execution
+    if [ -d "/opt/homebrew/bin" ]; then
+        eval "$(/opt/homebrew/bin/brew shellenv)"
+    elif [ -d "/usr/local/bin" ]; then
+        eval "$(/usr/local/bin/brew shellenv)"
+    fi
+
+    # 2. Install Brewfile dependencies
+    if [ -f "$BASEDIR/Brewfile" ]; then
+        echo "📦 Installing Homebrew packages from Brewfile..."
+        brew bundle --file="$BASEDIR/Brewfile"
+    fi
+elif [ "$OS_TYPE" = "Linux" ]; then
+    if command -v apt-get >/dev/null 2>&1; then
+        echo "🐧 Linux detected. Installing build dependencies..."
+        if ! command -v bison >/dev/null 2>&1 || ! command -v yacc >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y bison byacc
+        fi
+    fi
 fi
 
-# Set up Homebrew environment for this script execution
-if [ -d "/opt/homebrew/bin" ]; then
-    eval "$(/opt/homebrew/bin/brew shellenv)"
-elif [ -d "/usr/local/bin" ]; then
-    eval "$(/usr/local/bin/brew shellenv)"
-fi
-
-# 2. Install Brewfile dependencies
-if [ -f "$BASEDIR/Brewfile" ]; then
-    echo "📦 Installing Homebrew packages from Brewfile..."
-    brew bundle --file="$BASEDIR/Brewfile"
-fi
 
 # 3. Install mise if missing
 if ! command -v mise >/dev/null 2>&1; then
@@ -88,25 +100,27 @@ if [ ! -d ~/.tmux/plugins/tpm ]; then
     ~/.tmux/plugins/tpm/scripts/install_plugins.sh
 fi
 
-# 7. Restore Keyboard Maestro Macros
-if [ -f "$BASEDIR/KeyboardMaestroMacros.kmsync" ]; then
-    echo "🎹 Restoring Keyboard Maestro Macros..."
-    killall "Keyboard Maestro" 2>/dev/null || true
-    killall "Keyboard Maestro Engine" 2>/dev/null || true
-    
-    mkdir -p "$HOME/Library/Application Support/Keyboard Maestro"
-    cp "$BASEDIR/KeyboardMaestroMacros.kmsync" "$HOME/Library/Application Support/Keyboard Maestro/Keyboard Maestro Macros.plist"
-    
-    if [ -d "/Applications/Keyboard Maestro.app" ]; then
-        echo "🎹 Opening Keyboard Maestro to register configuration..."
-        open -a "Keyboard Maestro"
-    fi
-fi
+if [ "$OS_TYPE" = "Darwin" ]; then
+    # 7. Restore Keyboard Maestro Macros
+    if [ -f "$BASEDIR/KeyboardMaestroMacros.kmsync" ]; then
+        echo "🎹 Restoring Keyboard Maestro Macros..."
+        killall "Keyboard Maestro" 2>/dev/null || true
+        killall "Keyboard Maestro Engine" 2>/dev/null || true
 
-# 8. Open Karabiner Elements to initialize config
-if [ -d "/Applications/Karabiner-Elements.app" ]; then
-    echo "⌨️  Opening Karabiner-Elements to register configuration..."
-    open -a "Karabiner-Elements"
+        mkdir -p "$HOME/Library/Application Support/Keyboard Maestro"
+        cp "$BASEDIR/KeyboardMaestroMacros.kmsync" "$HOME/Library/Application Support/Keyboard Maestro/Keyboard Maestro Macros.plist"
+
+        if [ -d "/Applications/Keyboard Maestro.app" ]; then
+            echo "🎹 Opening Keyboard Maestro to register configuration..."
+            open -a "Keyboard Maestro"
+        fi
+    fi
+
+    # 8. Open Karabiner Elements to initialize config
+    if [ -d "/Applications/Karabiner-Elements.app" ]; then
+        echo "⌨️  Opening Karabiner-Elements to register configuration..."
+        open -a "Karabiner-Elements"
+    fi
 fi
 
 echo "🎉 Dotfiles setup complete!"

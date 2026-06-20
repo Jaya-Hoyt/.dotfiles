@@ -141,47 +141,6 @@ if status is-interactive
     abbr mu 'mise use -g'
     abbr muu 'mise use -g ubi:'
 
-    # javascript abbreviations
-    # javascript newline separated iterable
-    abbr --position anywhere --set-cursor jn 'deno eval \'const stdin = await new Response(Deno.stdin.readable).text();
-for (let [i, line] of stdin.split("\n").entries()) {
-  %
-  console.log(line);
-}
-\''
-
-    # javascript whitespace separated iterable
-    abbr --position anywhere --set-cursor js 'deno eval \'const stdin = await new Response(Deno.stdin.readable).text();
-for (let [i, line] of stdin.split(/\\s+/).entries()) {
-  %
-  console.log(line);
-}
-\''
-
-    # javascript json string
-    abbr --position anywhere --set-cursor jj 'deno eval \'const stdin = await new Response(Deno.stdin.readable).json();
-console.log(stdin);
-\''
-
-    # javascript newline separated async iterable
-    abbr --position anywhere --set-cursor jna 'deno eval \'import { createInterface } from "node:readline";
-let i = 0; for await (let line of createInterface(process.stdin)) {
-  %
-  console.log(line); i++;
-}
-\''
-
-    # javascript whitespace separated async iterable
-    abbr --position anywhere --set-cursor jsa 'deno eval \'import { createInterface } from "node:readline";
-let i = 0; for await (let line of createInterface(process.stdin)) {
-  for (let [j, word] of line.split(/\\s+/).entries()) {
-    %
-    console.log(word);
-  } i++
-}
-\'
-'
-
     # Renumber debug points
     abbr dr 'perl -i -pE \'s#DEBUGPRINT\[\d+#DEBUGPRINT[@{[++$i]}#\' ***.ts'
     abbr dd 'perl -i -nE \'print unless m{DEBUGPRINT}#\' ***.ts'

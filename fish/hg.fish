@@ -41,6 +41,7 @@ abbr heva 'hg evolve --abort'
 abbr hevc 'hg evolve --continue'
 
 abbr hex --set-cursor 'hg export % | delta --side-by-side'
+abbr hexi --set-cursor 'hg export % | DELTA_FEATURES=tokyonight-storm delta'
 
 abbr hf 'hg fix'
 
@@ -113,7 +114,7 @@ abbr hupt 'hg update tip'
 abbr huc 'hg upload chain'
 abbr hut 'hg upload tree'
 
-abbr hcld 'hg cls-drop --prune'
+abbr hcld 'hg cls-drop -y --skip-confirmation --prune'
 
 abbr hxl 'hg xl'
 

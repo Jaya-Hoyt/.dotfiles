@@ -1,0 +1,22 @@
+[include]
+	path = ~/.gitconfig.local
+	path = ~/.config/delta/tokyonight_storm.gitconfig
+
+[core]
+	pager = delta
+
+[submodule]
+	recurse = true
+
+[delta]
+	features = tokyonight-storm side-by-side-default
+	navigate = true
+	light = false
+	paging = always
+	tabs = 2
+
+[delta "side-by-side-default"]
+	side-by-side = true
+
+[interactive]
+	diffFilter = delta --color-only

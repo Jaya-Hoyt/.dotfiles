@@ -2,6 +2,27 @@
 # Machine setup script for macOS using default Bash (3.2 compatible)
 set -euo pipefail
 
+DOTFILES_DIR="$HOME/.dotfiles"
+
+# 0. Check if running the local cloned setup script.
+# If not, clone the repository first and re-execute from the local copy.
+RUNNING_LOCAL=0
+if [ -n "${BASH_SOURCE[0]:-}" ]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd 2>/dev/null || echo "")"
+    if [ "$SCRIPT_DIR" = "$DOTFILES_DIR" ]; then
+        RUNNING_LOCAL=1
+    fi
+fi
+
+if [ "$RUNNING_LOCAL" -ne 1 ]; then
+    if [ ! -d "$DOTFILES_DIR/.git" ]; then
+        echo "📥 Cloning dotfiles repository..."
+        git clone https://github.com/Jaya-Hoyt/.dotfiles.git "$DOTFILES_DIR"
+    fi
+    echo "🔄 Re-executing setup from local repository..."
+    exec "$DOTFILES_DIR/setup_dotfiles"
+fi
+
 BASEDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Ensure local bin is in PATH for the duration of this script

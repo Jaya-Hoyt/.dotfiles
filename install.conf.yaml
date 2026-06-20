@@ -38,7 +38,6 @@
     # Fish files
     ~/.config/fish/config.fish: fish/config.fish
     ~/.config/fish/fish_plugins: fish/fish_plugins
-    ~/.config/fish/fish_variables: fish/fish_variables
     ~/.config/fish/hg.fish: fish/hg.fish
 
     # Fish functions
@@ -59,7 +58,10 @@
 
     # Local bin
     ~/.local/bin/angular_switch.ts: local/bin/angular_switch.ts
+    ~/.local/bin/dictate: dictate
+    ~/.local/bin/kokoro-server: kokoro-server
     ~/.local/bin/mass_rename.ts: local/bin/mass_rename.ts
     ~/.local/bin/ppr: local/bin/ppr
+    ~/.local/bin/speak: local/bin/speak
     ~/.local/bin/tmux_search: local/bin/tmux_search
     ~/.local/bin/y.pm: local/bin/y.pm

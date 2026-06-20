@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
 
 FISH_VERSION="fish-3.7.1"
 
@@ -15,38 +15,6 @@ if test ! -f ~/.gitignore; then git config --global core.excludesFile ~/.gitigno
 if test ! -f ~/.tmux/plugins/tpm; then
     git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
     ~/.tmux/plugins/tpm/scripts/install_plugins.sh
-fi
-
-if ! command -v map &>/dev/null; then
-    cd map || exit 1
-    make PREFIX=~/.local install
-fi
-
-if ! command -v parallel &>/dev/null; then
-    cd gnu_parallel || exit 1
-    ./configure --prefix="$HOME/.local" \
-        && make \
-        && make install
-fi
-
-if ! command -v fish &>/dev/null; then
-    cd ${FISH_VERSION} || exit 1
-    cmake . \
-        && make \
-        && sudo make install
-fi
-
-if ! command -v nvim &>/dev/null; then
-    cd neovim || exit 1
-    git checkout v0.10.3
-    make CMAKE_BUILD_TYPE=RelWithDebInfo CMAKE_INSTALL_PREFIX="$HOME/.local" \
-        && make install \
-        && ln -s -f "$HOME/.local/bin/bin/nvim" "$HOME/.local/bin"
-fi
-
-if ! command -v dawk &>/dev/null; then
-    cd dawk || exit 1
-	  deno compile --allow-all --output "$HOME/.local/bin/dawk" dawk.ts
 fi
 
 ./install

@@ -46,7 +46,6 @@
     ~/.config/fish/functions/fish_user_key_bindings.fish: fish/functions/fish_user_key_bindings.fish
     ~/.config/fish/functions/gs.fish: fish/functions/gs.fish
     ~/.config/fish/functions/reorder_windows.fish: fish/functions/reorder_windows.fish
-    ~/.config/fish/functions/scloud.fish: fish/functions/scloud.fish
     ~/.config/fish/functions/toggle.fish: fish/functions/toggle.fish
 
     # Fish completions
@@ -64,6 +63,7 @@
     ~/.local/bin/kokoro-server: kokoro-server
     ~/.local/bin/mass_rename.ts: local/bin/mass_rename.ts
     ~/.local/bin/ppr: local/bin/ppr
+    ~/.local/bin/scloud: local/bin/scloud
     ~/.local/bin/speak: local/bin/speak
     ~/.local/bin/tmux_search: local/bin/tmux_search
     ~/.local/bin/y.pm: local/bin/y.pm

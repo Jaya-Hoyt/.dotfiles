@@ -1,0 +1,20 @@
+#!/usr/bin/env fish
+
+set -l host $argv[1]
+if test -z "$host"
+    echo "Usage: scloud <host-alias>"
+    exit 1
+end
+
+echo "Connecting to $host via shpool..."
+while true
+    ssh -t $host
+    set -l exit_code $status
+    # SSH exits with status 255 if the connection dropped/timed out.
+    # If it exited with any other status, it means the remote shell exited normally.
+    if test $exit_code -ne 255
+        break
+    end
+    echo "⚠️ Connection lost (exit code $exit_code). Reconnecting in 3 seconds... (Press Ctrl+C to abort)"
+    sleep 3
+end

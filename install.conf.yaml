@@ -26,6 +26,7 @@
     ~/.ideavimrc: ideavimrc
     ~/.ssh/scloud_config: ssh_config
     ~/.tmux.conf: tmux.conf
+    ~/.vimrc: vimrc
     ~/.config/flake8: flake8
     ~/.config/karabiner: karabiner
     ~/.gitignore: gitignore

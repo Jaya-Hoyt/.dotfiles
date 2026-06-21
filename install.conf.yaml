@@ -24,7 +24,6 @@
     ~/.bash_profile: bash_profile
     ~/.aliases: aliases
     ~/.ideavimrc: ideavimrc
-    ~/.ssh/scloud_config: ssh_config
     ~/.tmux.conf: tmux.conf
     ~/.vimrc: vimrc
     ~/.config/flake8: flake8

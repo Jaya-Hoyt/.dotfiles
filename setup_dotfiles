@@ -86,9 +86,35 @@ fi
 echo "🔗 Running Dotbot configuration link..."
 "$BASEDIR/install"
 
-# 4.5 Ensure ~/.ssh/scloud_config is included in ~/.ssh/config
+# 4.5 Ensure ~/.ssh/scloud_config is generated and included in ~/.ssh/config
 SSH_CONFIG="$HOME/.ssh/config"
 INCLUDE_LINE="Include ~/.ssh/scloud_config"
+SCLOUD_CONFIG_DEST="$HOME/.ssh/scloud_config"
+
+RESOLVED_SCLOUD_HOST="${SCLOUD_HOST:-}"
+if [ -z "$RESOLVED_SCLOUD_HOST" ] && command -v fish >/dev/null 2>&1; then
+    RESOLVED_SCLOUD_HOST=$(fish -c 'echo $SCLOUD_HOST' 2>/dev/null)
+fi
+
+if [ -z "$RESOLVED_SCLOUD_HOST" ]; then
+    if [ -t 0 ]; then
+        echo "❓ SCLOUD_HOST environment variable is not set."
+        read -p "👉 Enter your remote Cloudtop hostname (e.g. username.c.googlers.com): " RESOLVED_SCLOUD_HOST
+        if [ -n "$RESOLVED_SCLOUD_HOST" ] && command -v fish >/dev/null 2>&1; then
+            fish -c "set -Ux SCLOUD_HOST '$RESOLVED_SCLOUD_HOST'"
+        fi
+    else
+        echo "⚠️ SCLOUD_HOST is not set and stdin is not a TTY. Skipping scloud_config generation."
+    fi
+fi
+
+if [ -n "$RESOLVED_SCLOUD_HOST" ]; then
+    echo "⚙️  Generating ~/.ssh/scloud_config..."
+    mkdir -p "$HOME/.ssh"
+    sed "s/{{SCLOUD_HOST}}/$RESOLVED_SCLOUD_HOST/g" "$BASEDIR/ssh_config.template" > "$SCLOUD_CONFIG_DEST"
+    chmod 600 "$SCLOUD_CONFIG_DEST"
+fi
+
 mkdir -p "$HOME/.ssh"
 touch "$SSH_CONFIG"
 if ! grep -qF "$INCLUDE_LINE" "$SSH_CONFIG"; then
@@ -98,6 +124,7 @@ if ! grep -qF "$INCLUDE_LINE" "$SSH_CONFIG"; then
     cat "$SSH_CONFIG" >> "$TEMP_CONFIG"
     mv "$TEMP_CONFIG" "$SSH_CONFIG"
 fi
+
 
 
 # 5. Install mise tools (non-interactive)

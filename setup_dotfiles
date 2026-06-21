@@ -86,6 +86,20 @@ fi
 echo "🔗 Running Dotbot configuration link..."
 "$BASEDIR/install"
 
+# 4.5 Ensure ~/.ssh/scloud_config is included in ~/.ssh/config
+SSH_CONFIG="$HOME/.ssh/config"
+INCLUDE_LINE="Include ~/.ssh/scloud_config"
+mkdir -p "$HOME/.ssh"
+touch "$SSH_CONFIG"
+if ! grep -qF "$INCLUDE_LINE" "$SSH_CONFIG"; then
+    echo "⚙️  Adding Include ~/.ssh/scloud_config to ~/.ssh/config..."
+    TEMP_CONFIG=$(mktemp)
+    echo "$INCLUDE_LINE" > "$TEMP_CONFIG"
+    cat "$SSH_CONFIG" >> "$TEMP_CONFIG"
+    mv "$TEMP_CONFIG" "$SSH_CONFIG"
+fi
+
+
 # 5. Install mise tools (non-interactive)
 echo "📥 Installing tools configured in mise..."
 mise install --yes

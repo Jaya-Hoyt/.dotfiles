@@ -12,6 +12,7 @@
     - ~/.local/bin
     - ~/.config/fish
     - ~/.config/fish/functions
+    - ~/.ssh
 
 - link:
     ~/.tmux/plugins/tpm:
@@ -23,6 +24,7 @@
     ~/.bash_profile: bash_profile
     ~/.aliases: aliases
     ~/.ideavimrc: ideavimrc
+    ~/.ssh/scloud_config: ssh_config
     ~/.tmux.conf: tmux.conf
     ~/.config/flake8: flake8
     ~/.config/karabiner: karabiner

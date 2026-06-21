@@ -1,0 +1,12 @@
+# Generic shpool / scloud configuration for dotfiles
+Host main edit gemini
+  HostName scloud-host
+  RemoteCommand shpool attach -f %k -c "tmux new -A -s %k"
+  RequestTTY yes
+  ForwardAgent yes
+  ControlMaster auto
+  ControlPath ~/.ssh/sockets/%r@%h-%p
+  ControlPersist 20h
+
+Host scloud-host
+  ProxyCommand nc -w 10 $SCLOUD_HOST %p

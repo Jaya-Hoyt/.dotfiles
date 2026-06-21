@@ -3,7 +3,7 @@
 # Signal the Kokoro TTS server (kokoro-server.py) on 127.0.0.1:5050 to stop
 # whatever it's currently playing by sending the !!!STOP!!! interrupt.
 #
-#   stop_speak
+#   stop_speech
 
 printf '!!!STOP!!!' | command python3 -c 'import socket, sys
 data = sys.stdin.buffer.read()

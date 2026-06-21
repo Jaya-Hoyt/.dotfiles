@@ -65,5 +65,6 @@
     ~/.local/bin/ppr: local/bin/ppr
     ~/.local/bin/scloud: local/bin/scloud
     ~/.local/bin/speak: local/bin/speak
+    ~/.local/bin/stop_speech: local/bin/stop_speech
     ~/.local/bin/tmux_search: local/bin/tmux_search
     ~/.local/bin/y.pm: local/bin/y.pm

@@ -3,7 +3,7 @@ function scloud
     if test -z "$host"
         echo "Usage: scloud <host-alias>"
         return 1
-    fi
+    end
     echo "Connecting to $host via shpool..."
     while true
         ssh -t $host

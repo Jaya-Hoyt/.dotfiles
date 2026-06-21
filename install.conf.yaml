@@ -22,8 +22,6 @@
     ~/.bashrc: bashrc
     ~/.bash_profile: bash_profile
     ~/.aliases: aliases
-    ~/.proxy_url: proxy_url
-    ~/.proxy_configurer: proxy_configurer
     ~/.ideavimrc: ideavimrc
     ~/.tmux.conf: tmux.conf
     ~/.config/flake8: flake8

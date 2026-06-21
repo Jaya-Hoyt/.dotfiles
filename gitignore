@@ -25,7 +25,6 @@ annotation-generated-tst/
 annotation-generated-src/
 
 Brewfile.lock.json
-proxy_url
 zshrc_local
 
 .vscode/

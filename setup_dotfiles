@@ -39,9 +39,6 @@ mkdir -p ~/.config/fish
 touch ~/.config/fish/config.local.fish
 mkdir -p ~/.config/nvim/lua
 touch ~/.config/nvim/lua/init_local.lua
-if [ ! -f "$BASEDIR/proxy_url" ]; then
-    echo "proxy_url=" > "$BASEDIR/proxy_url"
-fi
 
 if [ ! -f ~/.gitignore ]; then
     echo "⚙️  Configuring global git excludes..."

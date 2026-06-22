@@ -1,0 +1,11 @@
+#!/usr/bin/env fish
+
+function gs
+    git -c color.status=always status -s
+    and printf '\n'
+    and git log --graph --all --pretty=format:'%C(bold)%h%Creset%C(auto)%d%Creset %s %C(yellow)<%an> %C(cyan)(%cr)%Creset' --abbrev-commit --date=relative --color=always -n 10
+end
+
+if not string match -q -- "*from sourcing file*" (status)
+    gs $argv
+end

@@ -44,7 +44,6 @@
     # Fish functions
     ~/.config/fish/functions/bg_func.fish: fish/functions/bg_func.fish
     ~/.config/fish/functions/fish_user_key_bindings.fish: fish/functions/fish_user_key_bindings.fish
-    ~/.config/fish/functions/gs.fish: fish/functions/gs.fish
     ~/.config/fish/functions/reorder_windows.fish: fish/functions/reorder_windows.fish
     ~/.config/fish/functions/toggle.fish: fish/functions/toggle.fish
 
@@ -60,6 +59,7 @@
     # Local bin
     ~/.local/bin/angular_switch.ts: local/bin/angular_switch.ts
     ~/.local/bin/dictate: dictate
+    ~/.local/bin/gs: local/bin/gs
     ~/.local/bin/kokoro-server: kokoro-server
     ~/.local/bin/mass_rename.ts: local/bin/mass_rename.ts
     ~/.local/bin/ppr: local/bin/ppr

@@ -40,6 +40,7 @@
     ~/.config/fish/config.fish: fish/config.fish
     ~/.config/fish/fish_plugins: fish/fish_plugins
     ~/.config/fish/hg.fish: fish/hg.fish
+    ~/.config/fish/git.fish: fish/git.fish
 
     # Fish functions
     ~/.config/fish/functions/bg_func.fish: fish/functions/bg_func.fish

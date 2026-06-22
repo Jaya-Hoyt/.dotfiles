@@ -164,6 +164,7 @@ if status is-interactive
     end
 
     source ~/.config/fish/hg.fish
+    source ~/.config/fish/git.fish
     source ~/.config/fish/config.local.fish
 
     fzf_configure_bindings --history=\cy --directory=\cf --git_status=\cs

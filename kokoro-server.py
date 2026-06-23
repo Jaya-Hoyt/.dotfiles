@@ -47,6 +47,11 @@ async def playback_worker():
       try:
         if stream is None:
           print("🔊 Opening CoreAudio stream...")
+          try:
+            sd._terminate()
+            sd._initialize()
+          except Exception as init_err:
+            print(f"Warning: Failed to re-initialize sounddevice: {init_err}")
           stream = sd.OutputStream(
               samplerate=SAMPLE_RATE, channels=1, dtype="float32"
           )

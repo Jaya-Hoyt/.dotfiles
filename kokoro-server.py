@@ -20,21 +20,46 @@ audio_queue = asyncio.Queue()
 # Global flag to abort playback instantly
 cancel_flag = False
 
-print("🔊 Opening persistent CoreAudio stream...")
-audio_stream = sd.OutputStream(
-    samplerate=SAMPLE_RATE, channels=1, dtype="float32"
-)
-audio_stream.start()
+# Persistent stream removed - managed dynamically in playback_worker
+
 
 
 async def playback_worker():
   """Reads from the queue and feeds the speaker hardware without blocking."""
   global cancel_flag
+  stream = None
   while True:
-    samples = await audio_queue.get()
-    # Only play the audio if we haven't hit the abort switch
+    try:
+      item = await audio_queue.get()
+    except asyncio.CancelledError:
+      break
+
+    if item is None or cancel_flag:
+      if stream is not None:
+        await asyncio.to_thread(stream.stop)
+        await asyncio.to_thread(stream.close)
+        stream = None
+      audio_queue.task_done()
+      continue
+
+    samples = item
     if not cancel_flag:
-      await asyncio.to_thread(audio_stream.write, samples)
+      try:
+        if stream is None:
+          print("🔊 Opening CoreAudio stream...")
+          stream = sd.OutputStream(
+              samplerate=SAMPLE_RATE, channels=1, dtype="float32"
+          )
+          await asyncio.to_thread(stream.start)
+        await asyncio.to_thread(stream.write, samples)
+      except Exception as e:
+        print(f"Error playing audio: {e}")
+        if stream is not None:
+          try:
+            stream.close()
+          except:
+            pass
+          stream = None
     audio_queue.task_done()
 
 
@@ -69,6 +94,7 @@ async def handle_client(reader, writer):
     while not audio_queue.empty():
       audio_queue.get_nowait()
       audio_queue.task_done()
+    await audio_queue.put(None)
     writer.close()
     return
 
@@ -144,6 +170,8 @@ async def handle_client(reader, writer):
         if cancel_flag:
           break
         await audio_queue.put(samples)
+
+    await audio_queue.put(None)
 
   writer.close()
 

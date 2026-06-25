@@ -135,8 +135,9 @@ mise install --yes
 if [ ! -d ~/.tmux/plugins/tpm ]; then
     echo "🔌 Installing Tmux Plugin Manager..."
     git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
-    ~/.tmux/plugins/tpm/scripts/install_plugins.sh
 fi
+echo "🔌 Installing Tmux plugins..."
+~/.tmux/plugins/tpm/bin/install_plugins
 
 if [ "$OS_TYPE" = "Darwin" ]; then
     # 7. Restore Keyboard Maestro Macros

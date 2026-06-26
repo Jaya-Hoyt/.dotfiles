@@ -109,6 +109,10 @@ return {
           --  the definition of its *type*, not where it was *defined*.
           map('grt', require('telescope.builtin').lsp_type_definitions, '[G]oto [T]ype Definition')
 
+          -- Show the full diagnostic (error/warning) message for the line under your cursor
+          -- in a floating window. Useful when virtual text is truncated.
+          map('gre', vim.diagnostic.open_float, '[G]oto [E]rror (diagnostic float)')
+
           -- This function resolves a difference between neovim nightly (version 0.11) and stable (version 0.10)
           ---@param client vim.lsp.Client
           ---@param method vim.lsp.protocol.Method

@@ -20,10 +20,54 @@ if [ "$RUNNING_LOCAL" -ne 1 ]; then
         git clone https://github.com/Jaya-Hoyt/.dotfiles.git "$DOTFILES_DIR"
     fi
     echo "🔄 Re-executing setup from local repository..."
-    exec "$DOTFILES_DIR/setup_dotfiles"
+    exec "$DOTFILES_DIR/setup_dotfiles" "$@"
 fi
 
 BASEDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Parse command-line arguments
+PROMPT_FOR_SCLOUD_HOST=0
+SCLOUD_HOST_OVERRIDE=""
+FORCE_KEYBOARD_MAESTRO=0
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --scloud-host)
+            shift
+            SCLOUD_HOST_OVERRIDE="${1:-}"
+            ;;
+        --scloud-host=*)
+            SCLOUD_HOST_OVERRIDE="${1#*=}"
+            ;;
+        --set-scloud-host)
+            PROMPT_FOR_SCLOUD_HOST=1
+            ;;
+        --force-keyboard-maestro)
+            FORCE_KEYBOARD_MAESTRO=1
+            ;;
+        -h|--help)
+            cat <<'EOF'
+Usage: setup_dotfiles [options]
+
+Options:
+  --scloud-host <host>       Set the remote Cloudtop hostname non-interactively.
+  --set-scloud-host          Prompt for the Cloudtop hostname (requires a TTY).
+  --force-keyboard-maestro   Overwrite an existing Keyboard Maestro config with
+                             the base config (default: never overwrite).
+  -h, --help                 Show this help message.
+
+By default the script runs non-interactively and falls back to a placeholder
+Cloudtop hostname when SCLOUD_HOST is not already set.
+EOF
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1" >&2
+            echo "Run './setup_dotfiles --help' for usage." >&2
+            exit 1
+            ;;
+    esac
+    if [ $# -gt 0 ]; then shift; fi
+done
 
 # Ensure local bin is in PATH for the duration of this script
 export PATH="$HOME/.local/bin:$PATH"
@@ -90,25 +134,38 @@ echo "🔗 Running Dotbot configuration link..."
 SSH_CONFIG="$HOME/.ssh/config"
 INCLUDE_LINE="Include ~/.ssh/scloud_config"
 SCLOUD_CONFIG_DEST="$HOME/.ssh/scloud_config"
+PLACEHOLDER_SCLOUD_HOST="REPLACE_ME.c.googlers.com"
 
-RESOLVED_SCLOUD_HOST="${SCLOUD_HOST:-}"
+# Resolve the Cloudtop hostname. Priority:
+#   1. --scloud-host <host> flag
+#   2. SCLOUD_HOST environment variable (shell or fish universal var)
+#   3. Interactive prompt, only when --set-scloud-host is passed and stdin is a TTY
+#   4. Placeholder, so the script stays fully non-interactive by default
+RESOLVED_SCLOUD_HOST="$SCLOUD_HOST_OVERRIDE"
+if [ -z "$RESOLVED_SCLOUD_HOST" ]; then
+    RESOLVED_SCLOUD_HOST="${SCLOUD_HOST:-}"
+fi
 if [ -z "$RESOLVED_SCLOUD_HOST" ] && command -v fish >/dev/null 2>&1; then
     RESOLVED_SCLOUD_HOST=$(fish -c 'echo $SCLOUD_HOST' 2>/dev/null)
 fi
 
-if [ -z "$RESOLVED_SCLOUD_HOST" ]; then
-    if [ -t 0 ]; then
-        echo "❓ SCLOUD_HOST environment variable is not set."
-        read -p "👉 Enter your remote Cloudtop hostname (e.g. username.c.googlers.com): " RESOLVED_SCLOUD_HOST
-        if [ -n "$RESOLVED_SCLOUD_HOST" ] && command -v fish >/dev/null 2>&1; then
-            fish -c "set -Ux SCLOUD_HOST '$RESOLVED_SCLOUD_HOST'"
-        fi
-    else
-        echo "⚠️ SCLOUD_HOST is not set and stdin is not a TTY. Skipping scloud_config generation."
+if [ -z "$RESOLVED_SCLOUD_HOST" ] && [ "$PROMPT_FOR_SCLOUD_HOST" -eq 1 ] && [ -t 0 ]; then
+    echo "❓ SCLOUD_HOST is not set."
+    read -p "👉 Enter your remote Cloudtop hostname (e.g. username.c.googlers.com): " RESOLVED_SCLOUD_HOST
+    if [ -n "$RESOLVED_SCLOUD_HOST" ] && command -v fish >/dev/null 2>&1; then
+        fish -c "set -Ux SCLOUD_HOST '$RESOLVED_SCLOUD_HOST'"
     fi
 fi
 
-if [ -n "$RESOLVED_SCLOUD_HOST" ]; then
+if [ -z "$RESOLVED_SCLOUD_HOST" ]; then
+    RESOLVED_SCLOUD_HOST="$PLACEHOLDER_SCLOUD_HOST"
+    echo "⚠️  SCLOUD_HOST not set; using placeholder '$PLACEHOLDER_SCLOUD_HOST'."
+    echo "    Set it later with: ./setup_dotfiles --scloud-host <host>   (or --set-scloud-host to be prompted)"
+fi
+
+if [ "$RESOLVED_SCLOUD_HOST" = "$PLACEHOLDER_SCLOUD_HOST" ] && [ -f "$SCLOUD_CONFIG_DEST" ]; then
+    echo "ℹ️  Keeping existing ~/.ssh/scloud_config (no real host provided)."
+else
     echo "⚙️  Generating ~/.ssh/scloud_config..."
     mkdir -p "$HOME/.ssh"
     sed "s/{{SCLOUD_HOST}}/$RESOLVED_SCLOUD_HOST/g" "$BASEDIR/ssh_config.template" > "$SCLOUD_CONFIG_DEST"
@@ -140,18 +197,27 @@ echo "🔌 Installing Tmux plugins..."
 ~/.tmux/plugins/tpm/bin/install_plugins
 
 if [ "$OS_TYPE" = "Darwin" ]; then
-    # 7. Restore Keyboard Maestro Macros
-    if [ -f "$BASEDIR/KeyboardMaestroMacros.kmsync" ]; then
-        echo "🎹 Restoring Keyboard Maestro Macros..."
-        killall "Keyboard Maestro" 2>/dev/null || true
-        killall "Keyboard Maestro Engine" 2>/dev/null || true
+    # 7. Install base Keyboard Maestro Macros (only when none exist yet)
+    #    This provides a starting point on a fresh machine but never clobbers a
+    #    config you've since diverged for this computer's unique needs.
+    KM_MACROS_SRC="$BASEDIR/KeyboardMaestroMacros.kmsync"
+    KM_MACROS_DEST="$HOME/Library/Application Support/Keyboard Maestro/Keyboard Maestro Macros.plist"
+    if [ -f "$KM_MACROS_SRC" ]; then
+        if [ -f "$KM_MACROS_DEST" ] && [ "$FORCE_KEYBOARD_MAESTRO" -ne 1 ]; then
+            echo "🎹 Keyboard Maestro config already present; leaving it untouched."
+            echo "    Use './setup_dotfiles --force-keyboard-maestro' to reset to the base config."
+        else
+            echo "🎹 Installing base Keyboard Maestro Macros..."
+            killall "Keyboard Maestro" 2>/dev/null || true
+            killall "Keyboard Maestro Engine" 2>/dev/null || true
 
-        mkdir -p "$HOME/Library/Application Support/Keyboard Maestro"
-        cp "$BASEDIR/KeyboardMaestroMacros.kmsync" "$HOME/Library/Application Support/Keyboard Maestro/Keyboard Maestro Macros.plist"
+            mkdir -p "$(dirname "$KM_MACROS_DEST")"
+            cp "$KM_MACROS_SRC" "$KM_MACROS_DEST"
 
-        if [ -d "/Applications/Keyboard Maestro.app" ]; then
-            echo "🎹 Opening Keyboard Maestro to register configuration..."
-            open -a "Keyboard Maestro"
+            if [ -d "/Applications/Keyboard Maestro.app" ]; then
+                echo "🎹 Opening Keyboard Maestro to register configuration..."
+                open -a "Keyboard Maestro"
+            fi
         fi
     fi
 

@@ -4,6 +4,7 @@ Host main edit gemini
   RemoteCommand shpool attach -f %k -c "tmux new -A -s %k"
   RequestTTY yes
   ForwardAgent yes
+  RemoteForward 9222 127.0.0.1:9222
   ControlMaster auto
   ControlPath ~/.ssh/sockets/%r@%h-%p
   ControlPersist 20h

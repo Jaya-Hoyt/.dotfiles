@@ -188,6 +188,13 @@ fi
 echo "📥 Installing tools configured in mise..."
 mise install --yes
 
+# 5.5 Install md2cb (Markdown to Clipboard converter)
+if ! command -v md2cb >/dev/null 2>&1; then
+    echo "📥 Installing md2cb..."
+    mkdir -p "$HOME/.local/bin"
+    curl -fsSL https://raw.githubusercontent.com/letientai299/md2cb/main/scripts/install.sh | bash -s -- -d "$HOME/.local/bin"
+fi
+
 # 6. Install Tmux Plugin Manager (TPM)
 if [ ! -d ~/.tmux/plugins/tpm ]; then
     echo "🔌 Installing Tmux Plugin Manager..."

@@ -165,7 +165,45 @@ async def handle_client(reader, writer):
     text = re.sub(r'https?://([a-zA-Z0-9.-]+)(?:/[^\s]*)?', url_repl, text)
     text = re.sub(r'\bwww\.([a-zA-Z0-9.-]+)(?:/[^\s]*)?', r'\1', text)
 
-    # 4. Clean up hex hashes (e.g. Git commit hashes, UUIDs) and long IDs/numbers.
+    # 4. Condense filepaths with more than 1 layer deep to just the filename:
+    # e.g., cloud/console/web/compute/advisor/components/questionnaire/questionnaire.ts -> questionnaire.ts
+    def filepath_repl(match):
+      start_idx = match.start()
+      preceding = text[:start_idx]
+      last_space = max(
+          preceding.rfind(" "), preceding.rfind("\n"), preceding.rfind("\t")
+      )
+      word_prefix = (
+          preceding[last_space + 1 :] if last_space != -1 else preceding
+      )
+      if (
+          "://" in word_prefix
+          or word_prefix.endswith(":/")
+          or word_prefix.lower().startswith(
+              ("http:", "https:", "ftp:", "file:", "www.")
+          )
+          or "://" in match.group(0)
+      ):
+        return match.group(0)
+
+      path = match.group(0)
+      parts = [
+          p for p in path.rstrip("/").split("/") if p and p not in (".", "..")
+      ]
+      if all(part.isdigit() for part in parts):
+        return match.group(0)
+
+      filename = path.rstrip("/").split("/")[-1]
+      return filename
+
+    seg = r"(?:\.[a-zA-Z0-9_~@+%-]+|[a-zA-Z0-9_~@+%-](?:[a-zA-Z0-9._~@+%-]*[a-zA-Z0-9_~@+%-])?)"
+    text = re.sub(
+        rf"(?<![a-zA-Z0-9._~@+%:/-])(?:(?:\./|\.\./|/)+)?{seg}/(?:{seg}/)+{seg}/?(?![a-zA-Z0-9_~@+%:/-])",
+        filepath_repl,
+        text,
+    )
+
+    # 5. Clean up hex hashes (e.g. Git commit hashes, UUIDs) and long IDs/numbers.
     def uuid_repl(match):
       uuid_str = match.group(0)
       start_idx = match.start()

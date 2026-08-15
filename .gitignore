@@ -9,3 +9,6 @@ nvim/lua/custom/plugins/google-plugins.lua
 fish-3.6.1/
 fish-3.7.1/
 fish/fish_variables
+jj/repos/
+jj/conf.d/local.toml
+.jetski_session

@@ -35,6 +35,7 @@ abbr hct 'hg continue'
 
 abbr hd 'hg diff | delta --side-by-side'
 abbr hdn 'hg diff % | nvim'
+abbr hdi --set-cursor 'hg diff % | DELTA_FEATURES=tokyonight-storm delta'
 
 abbr hev 'hg evolve'
 abbr heva 'hg evolve --abort'

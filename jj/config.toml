@@ -1,0 +1,18 @@
+#:schema https://docs.jj-vcs.dev/latest/config-schema.json
+
+[user]
+name = "Justin Hoyt"
+email = "justinhoyt@google.com"
+
+[ui]
+editor = "nvim"
+pager = "delta"
+diff-formatter = ":git"
+
+[git]
+auto-local-bookmark = true
+
+[aliases]
+s = ["status"]
+l = ["log"]
+d = ["diff"]

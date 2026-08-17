@@ -39,8 +39,10 @@ abbr jstn 'jj status'
 
 # Diff with side-by-side delta (replaces hd, hdn, hdi)
 abbr jd 'jj diff --git | delta --side-by-side'
+abbr jdp --set-cursor 'jj diff --git @-% | delta --side-by-side'
 abbr jdn --set-cursor 'jj diff --git % | nvim'
 abbr jdi --set-cursor 'jj diff --git % | DELTA_FEATURES=tokyonight-storm delta'
+abbr jdpi --set-cursor 'jj diff --git @-% | DELTA_FEATURES=tokyonight-storm delta'
 abbr jds 'jj diff --stat'
 abbr jdf 'jj diff --git'
 abbr jdr --set-cursor 'jj diff -r % --git | delta --side-by-side'
@@ -191,7 +193,6 @@ abbr jrfm 'jj restore --from main'
 # Discard/Abandon working copy or specific revision (replaces hdp)
 abbr jabd 'jj abandon'
 abbr jabr --set-cursor 'jj abandon %'
-abbr jdp 'jj abandon'
 
 # ------------------------------------------------------------------------------
 # 9. Conflict Resolution
@@ -361,8 +362,3 @@ abbr jbp "jj bookmark move --from 'heads(::@- & bookmarks())' --to @- && jj git 
 abbr jbmp "jj bookmark move --from 'heads(::@- & bookmarks())' --to @- && jj git push"
 abbr jbpt "jj bookmark move --from 'heads(::@ & bookmarks())' --to @ && jj git push"
 abbr jbm "jj bookmark move --from 'heads(::@- & bookmarks())' --to @-"
-
-
-
-
-

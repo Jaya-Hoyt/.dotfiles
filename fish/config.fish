@@ -158,7 +158,12 @@ if status is-interactive
         set -x PERL_MM_OPT "INSTALL_BASE=$HOME/perl5"
     end
 
-    set -x EDITOR nvim
+    # Set MISE_ENV: 'google' on Google workstations, 'personal' on personal machines
+    if test -x /usr/bin/jj; and string match -q "*google*" (/usr/bin/jj --version 2>/dev/null)
+        set -gx MISE_ENV google
+    else
+        set -gx MISE_ENV personal
+    end
 
     if type -q mise
         mise activate fish | source

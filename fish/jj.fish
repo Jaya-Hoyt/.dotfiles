@@ -65,17 +65,23 @@ abbr jid --set-cursor 'jj interdiff --from % --to @'
 # 3. Working Copy, Commits, & Descriptions
 # Note: In jj, edits to working-copy files are auto-amended into @ in real time.
 # ------------------------------------------------------------------------------
-# jj commit: sets description and immediately opens a fresh empty commit on top
+# jj commit: sets description and immediately opens a fresh empty commit on top (matches gc/gcm)
 abbr jc 'jj commit'
 abbr jcm --set-cursor 'jj commit -m "%"'
+abbr jcam --set-cursor 'jj commit -m "%"'
 
 # jj new: start a new empty working-copy commit
 abbr jn 'jj new'
 abbr jnm 'jj new main'
 abbr jnb 'jj new p4base'
 abbr jnr --set-cursor 'jj new %'
+abbr jcb --set-cursor 'jj new master -m "%"'
+abbr jcob --set-cursor 'jj new master -m "%"'
+abbr jsth 'jj new'
 
-# jj edit: switch working copy to an existing commit (replaces hg update)
+# jj edit / checkout: switch working copy to an existing commit (matches gco/gcom)
+abbr jco --set-cursor 'jj edit %'
+abbr jcom 'jj edit master'
 abbr jed --set-cursor 'jj edit %'
 abbr jedm 'jj edit main'
 abbr jedb 'jj edit p4base'
@@ -94,7 +100,7 @@ abbr jdescm --set-cursor 'jj describe -m "%"'
 # jj absorb: auto-distribute working copy changes into the commits that touched those lines
 abbr jab 'jj absorb'
 
-# Fold / Squash changes (replaces hfu / ham / hca)
+# Fold / Squash changes (matches gcaa/gcamd amend and hfu/ham/hca)
 # -u (--use-destination-message) keeps the target's commit description intact
 abbr jfu --set-cursor 'jj squash --into % -u'
 abbr jfup 'jj squash --into @- -u'
@@ -103,6 +109,8 @@ abbr jsqu --set-cursor 'jj squash --into %'
 abbr jsqf --set-cursor 'jj squash --from % --to @'
 abbr jam 'jj squash -u'
 abbr jca 'jj squash -u'
+abbr jcaa 'jj squash -u'
+abbr jcamd 'jj squash -u'
 abbr jamex 'jj squash -u; jj show --git'
 
 # Parallelize linear commits into siblings
@@ -149,9 +157,11 @@ abbr jprd 'jj prev --edit'
 abbr jrb 'jj rebase'
 # Rebase current commit + descendants TO destination
 abbr jrbt --set-cursor 'jj rebase -s @ -d %'
-# Rebase current commit TO p4base or main
+# Rebase current commit TO p4base, main, or master (matches grm)
 abbr jrbtb 'jj rebase -s @ -d p4base'
 abbr jrbtm 'jj rebase -s @ -d main'
+abbr jrbm 'jj rebase -d master'
+abbr jrbo 'jj rebase -d master@origin'
 # Rebase entire branch/chain TO destination
 abbr jrbbt --set-cursor 'jj rebase -b @ -d %'
 # Rebase source commit TO current commit
@@ -263,8 +273,23 @@ abbr jcd 'jj commit -m "Update personal g3docs"; jj fix; jj piper upload; jj pip
 abbr jcs 'jj commit -m "Update personal scripts"; jj fix; jj piper upload; jj piper submit; jj piper sync'
 
 # ------------------------------------------------------------------------------
-# 12. Bookmarks
+# 12. Bookmarks (Matches Git Branch gb / gba / gbd / gbm / gbt)
 # ------------------------------------------------------------------------------
+# Primary Git-matching abbreviations (gb -> jb)
+abbr jb 'jj bookmark'
+abbr jbl 'jj bookmark list'
+abbr jba 'jj bookmark list --all'
+abbr jbla 'jj bookmark list --all'
+abbr jbs --set-cursor 'jj bookmark set % -r @'
+abbr jbc --set-cursor 'jj bookmark create % -r @'
+abbr jbm --set-cursor 'jj bookmark move % --to @'
+abbr jbr --set-cursor 'jj bookmark rename %'
+abbr jbd --set-cursor 'jj bookmark delete %'
+abbr jbdel --set-cursor 'jj bookmark delete %'
+abbr jbt --set-cursor 'jj bookmark track % --remote origin'
+abbr jbu --set-cursor 'jj bookmark untrack % --remote origin'
+
+# Extended jbk* aliases
 abbr jbk 'jj bookmark'
 abbr jbkl 'jj bookmark list'
 abbr jbks --set-cursor 'jj bookmark set % -r @'
@@ -298,15 +323,24 @@ abbr jwsd --set-cursor 'jj piper citc delete %'
 # ------------------------------------------------------------------------------
 # 15. Git & GitHub Interoperability
 # ------------------------------------------------------------------------------
-# Fetch & Push
-abbr jgf 'jj git fetch'
-abbr jgfa 'jj git fetch --all-remotes'
+# Push (Matches gp / gpd / gpp)
+abbr jp 'jj git push'
 abbr jgp 'jj git push'
 abbr jgpa 'jj git push --all'
+abbr jpb --set-cursor 'jj git push -b %'
 abbr jgpb --set-cursor 'jj git push -b %'
 abbr jgpc --set-cursor 'jj git push -c %'
+abbr jpd 'jj git push --deleted'
 abbr jgpd 'jj git push --deleted'
+abbr jpn 'jj git push --dry-run'
 abbr jgpn 'jj git push --dry-run'
+
+# Fetch & Pull / Rebase (Matches gf / gl / glr / gpp)
+abbr jgf 'jj git fetch'
+abbr jgfa 'jj git fetch --all-remotes'
+abbr jgl 'jj git fetch && jj rebase -d master@origin'
+abbr jglr 'jj git fetch && jj rebase -d master@origin'
+abbr jpp 'jj git fetch && jj rebase -d master@origin && jj git push'
 
 # Remotes & Sync
 abbr jgr 'jj git remote list'
@@ -314,13 +348,21 @@ abbr jgra --set-cursor 'jj git remote add %'
 abbr jgi 'jj git import'
 abbr jge 'jj git export'
 
-# Init & Clone
-abbr jgco 'jj git init --colocate'
-abbr jgc --set-cursor 'jj git clone %'
+# Commits (Matches gc / gcm)
+abbr jgc 'jj commit'
+abbr jgcm --set-cursor 'jj commit -m "%"'
 
-# Pull / Rebase from remote master (mirrors gl / glr)
-abbr jgl 'jj git fetch && jj rebase -d master@origin'
-abbr jglr 'jj git fetch && jj rebase -d master@origin'
+# Init & Clone (Matches gcl)
+abbr jgco 'jj git init --colocate'
+abbr jgcl --set-cursor 'jj git clone %'
+
+# Advance parent bookmark to commit to push (@-) and push to GitHub
+abbr jbp "jj bookmark move --from 'heads(::@- & bookmarks())' --to @- && jj git push"
+abbr jbmp "jj bookmark move --from 'heads(::@- & bookmarks())' --to @- && jj git push"
+abbr jbpt "jj bookmark move --from 'heads(::@ & bookmarks())' --to @ && jj git push"
+abbr jbm "jj bookmark move --from 'heads(::@- & bookmarks())' --to @-"
+
+
 
 
 

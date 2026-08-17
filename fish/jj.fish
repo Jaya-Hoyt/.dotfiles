@@ -3,6 +3,11 @@
 # Translated, adapted, and extended from hg.fish (Fig/Mercurial)
 # ==============================================================================
 
+# Prioritize Google's custom internal jj (/usr/bin/jj with Piper support) on Google machines
+if test -x /usr/bin/jj; and string match -q "*google*" (/usr/bin/jj --version 2>/dev/null)
+    alias jj='/usr/bin/jj'
+end
+
 # ------------------------------------------------------------------------------
 # 1. Visualization & Graph Log
 # ------------------------------------------------------------------------------

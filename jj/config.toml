@@ -16,3 +16,16 @@ auto-local-bookmark = true
 s = ["status"]
 l = ["log"]
 d = ["diff"]
+desc = ["describe"]
+sh = ["show"]
+res = ["resolve"]
+sp = ["split"]
+sq = ["squash"]
+
+# Parent (@-) explicit shortcuts:
+dp = ["diff", "-r", "@-"]
+descp = ["describe", "-r", "@-"]
+shp = ["show", "-r", "@-"]
+resp = ["resolve", "-r", "@-"]
+spp = ["split", "-r", "@-"]
+sqp = ["squash", "-r", "@-"]

@@ -35,33 +35,61 @@ abbr jt 'cd . \
 # ------------------------------------------------------------------------------
 # Status with smart log (replaces hs, hsn)
 abbr jst 'jj status --color always && jxln'
-abbr jstn 'jj status'
 
-# Diff with side-by-side delta (replaces hd, hdn, hdi)
+# Diff with side-by-side delta (replaces hd, hdn, hdi) - defaults to @ (working copy)
 abbr jd 'jj diff --git | delta --side-by-side'
-abbr jdp --set-cursor 'jj diff --git @-% | delta --side-by-side'
-abbr jdn --set-cursor 'jj diff --git % | nvim'
-abbr jdi --set-cursor 'jj diff --git % | DELTA_FEATURES=tokyonight-storm delta'
-abbr jdpi --set-cursor 'jj diff --git @-% | DELTA_FEATURES=tokyonight-storm delta'
-abbr jds 'jj diff --stat'
-abbr jdf 'jj diff --git'
+abbr jdp 'jj diff -r @- --git | delta --side-by-side'
+abbr jdpp 'jj diff -r @-- --git | delta --side-by-side'
 abbr jdr --set-cursor 'jj diff -r % --git | delta --side-by-side'
 
+# Inline diff with Delta inline diff
+abbr jdi 'jj diff --git | DELTA_FEATURES=tokyonight-storm delta'
+abbr jdip 'jj diff -r @- --git | DELTA_FEATURES=tokyonight-storm delta'
+abbr jdpi 'jj diff -r @- --git | DELTA_FEATURES=tokyonight-storm delta'
+abbr jdipp 'jj diff -r @-- --git | DELTA_FEATURES=tokyonight-storm delta'
+abbr jdppi 'jj diff -r @-- --git | DELTA_FEATURES=tokyonight-storm delta'
+abbr jdir --set-cursor 'jj diff -r % --git | DELTA_FEATURES=tokyonight-storm delta'
+abbr jdri --set-cursor 'jj diff -r % --git | DELTA_FEATURES=tokyonight-storm delta'
+
+# Diff stat
+abbr jds 'jj diff --stat'
+abbr jdsp 'jj diff -r @- --stat'
+abbr jdspp 'jj diff -r @-- --stat'
+abbr jdsr --set-cursor 'jj diff -r % --stat'
+
+# Raw git diff
+abbr jgd 'jj diff --git'
+abbr jgdp 'jj diff -r @- --git'
+abbr jgdpp 'jj diff -r @-- --git'
+abbr jgdr --set-cursor 'jj diff -r % --git'
+
 # List modified files / status filenames (replaces hsm, hss)
-abbr jss 'jj diff --name-only'
-abbr jsm 'jj diff --name-only'
+abbr jdn 'jj diff --name-only'
+abbr jdnp 'jj diff -r @- --name-only'
+abbr jdnpp 'jj diff -r @-- --name-only'
+abbr jdnr --set-cursor 'jj diff -r % --name-only'
 
-# Show / Export specific revision (replaces hex, hexi)
-abbr jsh --set-cursor 'jj show --git % | delta --side-by-side'
-abbr jshi --set-cursor 'jj show --git % | DELTA_FEATURES=tokyonight-storm delta'
-abbr jshow --set-cursor 'jj show --git %'
+# Show / Export specific revision (replaces hex, hexi) - defaults to @ (working copy)
+abbr jsh 'jj show --git | delta --side-by-side'
+abbr jshi 'jj show --git | DELTA_FEATURES=tokyonight-storm delta'
 
-# Show / Export parent commit
-abbr jshp --set-cursor 'jj show --git @-% | delta --side-by-side'
-abbr jshpi --set-cursor 'jj show --git @-% | DELTA_FEATURES=tokyonight-storm delta'
+# Show / Export parent (@-) and grandparent (@--)
+abbr jshp 'jj show -r @- --git | delta --side-by-side'
+abbr jship 'jj show -r @- --git | DELTA_FEATURES=tokyonight-storm delta'
+abbr jshpi 'jj show -r @- --git | DELTA_FEATURES=tokyonight-storm delta'
 
-# Interdiff - compare changes across versions/snapshots (e.g., since last upload)
+abbr jshpp 'jj show -r @-- --git | delta --side-by-side'
+abbr jshipp 'jj show -r @-- --git | DELTA_FEATURES=tokyonight-storm delta'
+abbr jshppi 'jj show -r @-- --git | DELTA_FEATURES=tokyonight-storm delta'
+
+# Show parameterized by revision
+abbr jshr --set-cursor 'jj show -r % --git | delta --side-by-side'
+abbr jshir --set-cursor 'jj show -r % --git | DELTA_FEATURES=tokyonight-storm delta'
+abbr jshri --set-cursor 'jj show -r % --git | DELTA_FEATURES=tokyonight-storm delta'
+
+# Interdiff - compare changes across versions/snapshots
 abbr jid --set-cursor 'jj interdiff --from % --to @'
+abbr jidp --set-cursor 'jj interdiff --from % --to @-'
 
 # ------------------------------------------------------------------------------
 # 3. Working Copy, Commits, & Descriptions
@@ -70,7 +98,6 @@ abbr jid --set-cursor 'jj interdiff --from % --to @'
 # jj commit: sets description and immediately opens a fresh empty commit on top (matches gc/gcm)
 abbr jc 'jj commit'
 abbr jcm --set-cursor 'jj commit -m "%"'
-abbr jcam --set-cursor 'jj commit -m "%"'
 
 # jj new: start a new empty working-copy commit
 abbr jn 'jj new'
@@ -79,21 +106,22 @@ abbr jnb 'jj new p4base'
 abbr jnr --set-cursor 'jj new %'
 abbr jcb --set-cursor 'jj new master -m "%"'
 abbr jcob --set-cursor 'jj new master -m "%"'
-abbr jsth 'jj new'
 
 # jj edit / checkout: switch working copy to an existing commit (matches gco/gcom)
-abbr jco --set-cursor 'jj edit %'
-abbr jcom 'jj edit master'
 abbr jed --set-cursor 'jj edit %'
 abbr jedm 'jj edit main'
 abbr jedb 'jj edit p4base'
-abbr jup --set-cursor 'jj edit %'
-abbr jupm 'jj edit main'
-abbr jupb 'jj edit p4base'
+abbr jedp 'jj edit @-'
+abbr jedpp 'jj edit @--'
 
-# jj describe: edit commit message in place (replaces hca/describe)
+# jj describe: edit commit message in place (replaces hca/describe) - defaults to @ (working copy)
 abbr jdesc 'jj describe'
 abbr jdescm --set-cursor 'jj describe -m "%"'
+abbr jdescp 'jj describe -r @-'
+abbr jdescpm --set-cursor 'jj describe -r @- -m "%"'
+abbr jdescpp 'jj describe -r @--'
+abbr jdescppm --set-cursor 'jj describe -r @-- -m "%"'
+abbr jdescr --set-cursor 'jj describe -r %'
 
 # ------------------------------------------------------------------------------
 # 4. History Modification, Squash & Fixup
@@ -104,30 +132,34 @@ abbr jab 'jj absorb'
 
 # Fold / Squash changes (matches gcaa/gcamd amend and hfu/ham/hca)
 # -u (--use-destination-message) keeps the target's commit description intact
-abbr jfu --set-cursor 'jj squash --into % -u'
-abbr jfup 'jj squash --into @- -u'
 abbr jsq 'jj squash'
-abbr jsqu --set-cursor 'jj squash --into %'
-abbr jsqf --set-cursor 'jj squash --from % --to @'
-abbr jam 'jj squash -u'
-abbr jca 'jj squash -u'
-abbr jcaa 'jj squash -u'
-abbr jcamd 'jj squash -u'
-abbr jamex 'jj squash -u; jj show --git'
+abbr jsqu 'jj squash -u'
+
+abbr jsqp 'jj squash -r @-'
+abbr jsqpp 'jj squash -r @--'
 
 # Parallelize linear commits into siblings
 abbr jpar 'jj parallelize'
 
-# Interactive arrangement & diff editing
+# Interactive arrangement & diff editing - defaults to @ (working copy)
 abbr jarr 'jj arrange'
-abbr jdfedit 'jj diffedit'
-abbr jevo 'jj evolog'
-abbr jevolog 'jj evolog'
+abbr jdedit 'jj diffedit'
+abbr jdeditp 'jj diffedit -r @-'
+abbr jdeditpp 'jj diffedit -r @--'
+abbr jdeditr --set-cursor 'jj diffedit -r %'
 
-# Split commits (replaces hsp)
+abbr jevo 'jj evolog -p'
+abbr jevop 'jj evolog -r @- -p'
+abbr jevopp 'jj evolog -r @-- -p'
+abbr jevologp 'jj evolog -r @- -p'
+abbr jevologpp 'jj evolog -r @-- -p'
+
+# Split commits (replaces hsp) - defaults to @ (working copy)
 abbr jsp 'jj split'
-abbr jspm --set-cursor 'jj split -m "%"'
-abbr jspp --set-cursor 'jj split --parallel -m "%"'
+abbr jspp 'jj split -r @-'
+abbr jsppp 'jj split -r @--'
+abbr jspr --set-cursor 'jj split -r %'
+abbr jspar --set-cursor 'jj split --parallel -m "%"'
 
 # ------------------------------------------------------------------------------
 # 5. Operation Log & Undo (Replaces abort/continue workflows)
@@ -145,208 +177,228 @@ abbr jne 'jj next'
 abbr jnee 'jj next 2'
 abbr jneee 'jj next 3'
 abbr jneeee 'jj next 4'
-abbr jned 'jj next --edit'
 
 abbr jpr 'jj prev'
 abbr jprr 'jj prev 2'
 abbr jprrr 'jj prev 3'
 abbr jprrrr 'jj prev 4'
-abbr jprd 'jj prev --edit'
 
 # ------------------------------------------------------------------------------
 # 7. Rebase Operations
 # ------------------------------------------------------------------------------
 abbr jrb 'jj rebase'
-# Rebase current commit + descendants TO destination
+# Rebase current commit + descendants TO destination (defaults to @)
 abbr jrbt --set-cursor 'jj rebase -s @ -d %'
+abbr jrbtp --set-cursor 'jj rebase -s @- -d %'
 # Rebase current commit TO p4base, main, or master (matches grm)
 abbr jrbtb 'jj rebase -s @ -d p4base'
+abbr jrbtbp 'jj rebase -s @- -d p4base'
+
 abbr jrbtm 'jj rebase -s @ -d main'
-abbr jrbm 'jj rebase -d master'
-abbr jrbo 'jj rebase -d master@origin'
+abbr jrbtmp 'jj rebase -s @- -d main'
+
+abbr jrbtms 'jj rebase -s @ -d master'
+abbr jrbtmsp 'jj rebase -s @- -d master'
+
+abbr jrbo 'jj rebase -s @ -d master@origin'
+abbr jrbop 'jj rebase -s @- -d master@origin'
+
 # Rebase entire branch/chain TO destination
 abbr jrbbt --set-cursor 'jj rebase -b @ -d %'
+abbr jrbbtp --set-cursor 'jj rebase -b @- -d %'
+
 # Rebase source commit TO current commit
 abbr jrbf --set-cursor 'jj rebase -s % -d @'
+abbr jrbfp --set-cursor 'jj rebase -s % -d @-'
+
 # Rebase source branch TO current commit
 abbr jrbbf --set-cursor 'jj rebase -b % -d @'
-# Rebase ONLY current revision without moving descendants
-abbr jrbr --set-cursor 'jj rebase -r @ -d %'
-# Insert commit before / after target
-abbr jrbib --set-cursor 'jj rebase -s % --insert-before @'
-abbr jrbia --set-cursor 'jj rebase -s % --insert-after @'
-# Undo accidental rebase (replaces hrba)
-abbr jrba 'jj undo'
+abbr jrbbfp --set-cursor 'jj rebase -b % -d @-'
 
 # ------------------------------------------------------------------------------
 # 8. Restore & Abandon (Replaces hg revert / drop)
 # ------------------------------------------------------------------------------
-# Restore file(s) in working copy from parent commit (replaces hr)
+# Restore file(s) in working copy (replaces hr)
 abbr jr --set-cursor 'jj restore %'
 # Restore all modified files in working copy (replaces hra)
 abbr jra 'jj restore'
-# Restore files from specific revision or base
-abbr jrf --set-cursor 'jj restore --from %'
-abbr jrfb 'jj restore --from p4base'
-abbr jrfm 'jj restore --from main'
 
-# Discard/Abandon working copy or specific revision (replaces hdp)
-abbr jabd 'jj abandon'
+# Restore/reverse changes introduced in commit (defaults to @)
+abbr jrc 'jj restore -c @'
+abbr jrcp 'jj restore -c @-'
+abbr jrcpp 'jj restore -c @--'
+abbr jrcr --set-cursor 'jj restore -c %'
+
+# Discard/Abandon commit or specific revision (replaces hdp) - defaults to @ (working copy)
+abbr jabd 'jj abandon @'
+abbr jabdp 'jj abandon @-'
+abbr jabdpp 'jj abandon @--'
+abbr jabdr --set-cursor 'jj abandon %'
 abbr jabr --set-cursor 'jj abandon %'
 
 # ------------------------------------------------------------------------------
 # 9. Conflict Resolution
 # Note: Removing conflict markers from files auto-resolves them in jj.
 # ------------------------------------------------------------------------------
-abbr jrl 'jj resolve --list'
-abbr jro --set-cursor 'jj resolve --tool :ours %'
-abbr jrt --set-cursor 'jj resolve --tool :theirs %'
 abbr jres 'jj resolve'
+abbr jresp 'jj resolve -r @-'
+abbr jrespp 'jj resolve -r @--'
+abbr jresr --set-cursor 'jj resolve -r %'
+
+abbr jrl 'jj resolve --list'
+abbr jrlp 'jj resolve -r @- --list'
+abbr jrlpp 'jj resolve -r @-- --list'
+abbr jrlr --set-cursor 'jj resolve -r % --list'
+
+abbr jro --set-cursor 'jj resolve --tool :ours %'
+abbr jrop --set-cursor 'jj resolve -r @- --tool :ours %'
+abbr jropp --set-cursor 'jj resolve -r @-- --tool :ours %'
+abbr jror --set-cursor 'jj resolve -r % --tool :ours'
+
+abbr jrt --set-cursor 'jj resolve --tool :theirs %'
+abbr jrtp --set-cursor 'jj resolve -r @- --tool :theirs %'
+abbr jrtpp --set-cursor 'jj resolve -r @-- --tool :theirs %'
+abbr jrtr --set-cursor 'jj resolve -r % --tool :theirs'
 
 # ------------------------------------------------------------------------------
 # 10. Code Formatting & Composite Workflows
 # ------------------------------------------------------------------------------
-# Format changed files
-abbr jf 'jj fix'
-
-# All-in-one fix, upload, presubmit, mail chains (replaces haa, hauc, haps, haml)
-abbr jaa 'fixts; jj fix; fixbuild'
-abbr jaas 'fixts; jj fix; fixbuild; jj squash -u'
-abbr jauc 'fixts; jj fix; fixbuild; jj piper upload'
-abbr japs 'fixts; jj fix; fixbuild; jj piper upload; jj piper presubmit --detach'
-abbr jaml 'fixts; jj fix; fixbuild; jj piper upload; jj piper presubmit --detach; jj piper mail'
-abbr jaucpsh 'jj piper upload; jj piper presubmit --detach && jj piper mail'
+# Format changed files - defaults to @ (working copy)
+abbr jfix 'jj fix -s @'
+abbr jfixp 'jj fix -s @-'
+abbr jfixpp 'jj fix -s @--'
+abbr jfixr --set-cursor 'jj fix -s %'
 
 # ------------------------------------------------------------------------------
 # 11. Critique & Piper Lifecycle (Upload, Presubmit, Mail, Submit, Sync, Patch)
 # ------------------------------------------------------------------------------
-# Upload CLs to Critique (replaces huc, hut)
-abbr juc 'jj piper upload'
-abbr jupc 'jj piper upload'
-abbr jut 'jj piper upload -r "reachable(@, mutable())"'
-abbr jupt 'jj piper upload -r "reachable(@, mutable())"'
-abbr jupa 'jj piper upload --all'
-abbr jupe 'jj piper upload --exported'
-abbr jupr --set-cursor 'jj piper upload -r %'
-abbr jupo 'jj piper upload --overwrite-remote-changes'
-abbr jupp 'jj piper upload -p'
+# Upload CLs to Critique (replaces huc, hut) - defaults to @
+abbr jpu 'jj piper upload'
+abbr jpup 'jj piper upload -r @-'
+abbr jpupp 'jj piper upload -r @--'
+abbr jpua 'jj piper upload --all'
+abbr jpue 'jj piper upload --exported'
+abbr jpur --set-cursor 'jj piper upload -r %'
 
-# Presubmit
-abbr jps 'jj piper presubmit'
-abbr jpsd 'jj piper presubmit --detach'
-abbr jpse 'jj piper presubmit --eager'
+# Presubmit - defaults to @ (working copy)
+abbr jpps 'jj piper presubmit'
+abbr jppsd 'jj piper presubmit --detach'
+abbr jppsp 'jj piper presubmit -r @-'
+abbr jppsdp 'jj piper presubmit -r @- --detach'
+abbr jppspp 'jj piper presubmit -r @--'
+abbr jppsr --set-cursor 'jj piper presubmit -r %'
+abbr jppsrd --set-cursor 'jj piper presubmit -r % --detach'
 
-# Mail (replaces hml)
-abbr jml --set-cursor 'jj piper mail --reviewers %'
-abbr jmla 'jj piper mail'
-abbr jmll 'jj piper mail --lucky'
-abbr jmlf 'jj piper mail --find-reviewers'
-abbr jmlr 'jj piper mail --remail'
-abbr jmlp 'jj piper mail --reviewers $PRIMARY_REVIEWER'
+# Mail (replaces hml) - defaults to @ (working copy)
+abbr jpml 'jj piper mail'
+abbr jpmlf 'jj piper mail --find-reviewers'
+abbr jpmlr 'jj piper mail --remail'
+abbr jpmlpr 'jj piper mail --reviewers $PRIMARY_REVIEWER'
 
-# Submit (replaces hsb, sub)
-abbr jsb 'jj piper submit'
-abbr jsbd 'jj piper submit --detach'
-abbr jsba 'jj piper submit --autosync'
+abbr jpmlp 'jj piper mail -r @-'
+abbr jpmlpf 'jj piper mail -r @- --find-reviewers'
+abbr jpmlrp 'jj piper mail -r @- --remail'
+abbr jpmlprp 'jj piper mail -r @- --reviewers $PRIMARY_REVIEWER'
+
+# Submit (replaces hsb, sub) - defaults to @ (working copy)
+abbr jps 'jj piper submit'
+abbr jpsd 'jj piper submit --detach'
+abbr jpsp 'jj piper submit -r @-'
+abbr jpsdp 'jj piper submit -r @- --detach'
+abbr jpspp 'jj piper submit -r @--'
+abbr jpsr --set-cursor 'jj piper submit -r %'
+abbr jpsrd --set-cursor 'jj piper submit -r % --detach'
 
 # Sync (replaces hsy)
-abbr jsy 'jj piper sync'
-abbr jsya 'jj piper sync --all'
-abbr jsyn 'jj piper sync --none'
-abbr jsyc --set-cursor 'jj piper sync --cl %'
+abbr jpsy 'jj piper sync'
+abbr jpsya 'jj piper sync --all'
 
 # Drop CL from Critique/Piper (replaces hcld)
-abbr jcld --set-cursor 'jj piper cls drop --skip-confirmation %'
-abbr jcldk --set-cursor 'jj piper cls drop --skip-confirmation --keep-local %'
+abbr jpcld --set-cursor 'jj piper cls drop --skip-confirmation %'
+abbr jpcldk --set-cursor 'jj piper cls drop --skip-confirmation --keep-local %'
 
 # Import / Patch CL from Piper (replaces hpa)
-abbr jpa --position anywhere 'jj piper patch'
-abbr jpad --position anywhere --set-cursor 'jj piper patch --duplicate %'
-abbr jpan --position anywhere --set-cursor 'jj piper patch --no-adopt %'
-abbr jpas --position anywhere --set-cursor 'jj piper patch --squash-diffbases %'
+abbr jppa --position anywhere 'jj piper patch'
+abbr jppad --position anywhere --set-cursor 'jj piper patch --duplicate %'
+abbr jppan --position anywhere --set-cursor 'jj piper patch --no-adopt %'
+abbr jppas --position anywhere --set-cursor 'jj piper patch --squash-diffbases %'
 
-# Piper Linter Findings
-abbr jli 'jj piper lint'
-abbr jlir --set-cursor 'jj piper lint -r %'
-
-# Quick personal commits + sync (replaces harcd, harcs)
-abbr jcd 'jj commit -m "Update personal g3docs"; jj fix; jj piper upload; jj piper submit; jj piper sync'
-abbr jcs 'jj commit -m "Update personal scripts"; jj fix; jj piper upload; jj piper submit; jj piper sync'
+# Piper Linter Findings - defaults to @ (working copy)
+abbr jpli 'jj piper lint'
+abbr jplip 'jj piper lint -r @-'
+abbr jplipp 'jj piper lint -r @--'
+abbr jplir --set-cursor 'jj piper lint -r %'
 
 # ------------------------------------------------------------------------------
 # 12. Bookmarks (Matches Git Branch gb / gba / gbd / gbm / gbt)
 # ------------------------------------------------------------------------------
-# Primary Git-matching abbreviations (gb -> jb)
+# Primary Git-matching abbreviations (gb -> jb) - defaults to @ (working copy)
 abbr jb 'jj bookmark'
 abbr jbl 'jj bookmark list'
-abbr jba 'jj bookmark list --all'
+abbr jba 'jj bookmark advance'
 abbr jbla 'jj bookmark list --all'
+abbr jtug 'jj bookmark advance'
+
 abbr jbs --set-cursor 'jj bookmark set % -r @'
 abbr jbc --set-cursor 'jj bookmark create % -r @'
-abbr jbm --set-cursor 'jj bookmark move % --to @'
+
+abbr jbsp --set-cursor 'jj bookmark set % -r @-'
+abbr jbcp --set-cursor 'jj bookmark create % -r @-'
+
+abbr jbspp --set-cursor 'jj bookmark set % -r @--'
+abbr jbcpp --set-cursor 'jj bookmark create % -r @--'
+
 abbr jbr --set-cursor 'jj bookmark rename %'
 abbr jbd --set-cursor 'jj bookmark delete %'
 abbr jbdel --set-cursor 'jj bookmark delete %'
 abbr jbt --set-cursor 'jj bookmark track % --remote origin'
 abbr jbu --set-cursor 'jj bookmark untrack % --remote origin'
 
-# Extended jbk* aliases
-abbr jbk 'jj bookmark'
-abbr jbkl 'jj bookmark list'
-abbr jbks --set-cursor 'jj bookmark set % -r @'
-abbr jbkc --set-cursor 'jj bookmark create % -r @'
-abbr jbkm --set-cursor 'jj bookmark move % --to @'
-abbr jbkr --set-cursor 'jj bookmark rename %'
-abbr jbkd --set-cursor 'jj bookmark delete %'
-abbr jbkf --set-cursor 'jj bookmark forget %'
-abbr jbkt --set-cursor 'jj bookmark track % --remote origin'
-abbr jbku --set-cursor 'jj bookmark untrack % --remote origin'
 abbr jbkda 'jj bookmark list -T "if(remote, \"\", name ++ \"\n\")" | while read -l b; test -n "$b" && jj bookmark delete "$b"; end'
 
 # ------------------------------------------------------------------------------
 # 13. File Operations (History Preserving)
 # ------------------------------------------------------------------------------
-abbr jmv --set-cursor 'jj piper rename %'
-abbr jcp --set-cursor 'jj piper copy %'
-abbr jmva --set-cursor 'jj piper rename --after %'
-abbr jcpa --set-cursor 'jj piper copy --after %'
+abbr jpmv --set-cursor 'jj piper rename %'
+abbr jpcp --set-cursor 'jj piper copy %'
+abbr jpmva --set-cursor 'jj piper rename --after %'
+abbr jpcpa --set-cursor 'jj piper copy --after %'
+
 abbr jft --set-cursor 'jj file track %'
 abbr jfut --set-cursor 'jj file untrack %'
 
 # ------------------------------------------------------------------------------
 # 14. CitC Workspace Navigation & Management
 # ------------------------------------------------------------------------------
-abbr jgoto --set-cursor 'cd (jj piper jjd %)'
-abbr jmkws --set-cursor 'cd (jj piper jjd -f %)'
-abbr jwsl 'jj piper citc list'
-abbr jwsd --set-cursor 'jj piper citc delete %'
+abbr jpgoto --set-cursor 'cd (jj piper jjd %)'
+abbr jpmkws --set-cursor 'cd (jj piper jjd -f %)'
+abbr jpwsl 'jj piper citc list'
+abbr jpwsd --set-cursor 'jj piper citc delete %'
 
 # ------------------------------------------------------------------------------
 # 15. Git & GitHub Interoperability
 # ------------------------------------------------------------------------------
 # Push (Matches gp / gpd / gpp)
-abbr jp 'jj git push'
+abbr jgpush 'jj git push'
 abbr jgpa 'jj git push --all'
-abbr jpb --set-cursor 'jj git push -b %'
-abbr jgpb --set-cursor 'jj git push -b %'
-abbr jgpc --set-cursor 'jj git push -c %'
-abbr jpd 'jj git push --deleted'
-abbr jgpd 'jj git push --deleted'
-abbr jpn 'jj git push --dry-run'
-abbr jgpn 'jj git push --dry-run'
 
 # Fetch & Pull / Rebase (Matches gf / gl / glr / gpp)
 abbr jgf 'jj git fetch'
 abbr jgfa 'jj git fetch --all-remotes'
-abbr jgl 'jj git fetch && jj rebase -d master@origin'
-abbr jglr 'jj git fetch && jj rebase -d master@origin'
-abbr jpp 'jj git fetch && jj rebase -d master@origin && jj git push'
+
+abbr jgl 'jj git fetch && jj rebase -s @ -d master@origin'
+abbr jglp 'jj git fetch && jj rebase -s @- -d master@origin'
+abbr jglpp 'jj git fetch && jj rebase -s @-- -d master@origin'
+
+abbr jglr --set-cursor 'jj git fetch && jj rebase -s % -d master@origin'
+
+abbr jgpr 'jj git fetch && jj rebase -s @ -d master@origin && jj git push'
+abbr jgprp 'jj git fetch && jj rebase -s @- -d master@origin && jj git push'
+abbr jgprpp 'jj git fetch && jj rebase -s @-- -d master@origin && jj git push'
 
 # Remotes & Sync
 abbr jgr 'jj git remote list'
 abbr jgra --set-cursor 'jj git remote add %'
-abbr jgi 'jj git import'
-abbr jge 'jj git export'
 
 # Commits (Matches gc / gcm)
 abbr jgc 'jj commit'
@@ -356,9 +408,10 @@ abbr jgcm --set-cursor 'jj commit -m "%"'
 abbr jgco 'jj git init --colocate'
 abbr jgcl --set-cursor 'jj git clone %'
 
-# Advance parent bookmark to commit to push (@-) and push to GitHub
-abbr jgp "jj bookmark move --from 'heads(::@- & bookmarks())' --to @- && jj git push"
-abbr jbp "jj bookmark move --from 'heads(::@- & bookmarks())' --to @- && jj git push"
-abbr jbmp "jj bookmark move --from 'heads(::@- & bookmarks())' --to @- && jj git push"
-abbr jbpt "jj bookmark move --from 'heads(::@ & bookmarks())' --to @ && jj git push"
-abbr jbm "jj bookmark move --from 'heads(::@- & bookmarks())' --to @-"
+# Advance bookmark to current commit (@) and push to GitHub
+abbr jgp "jj bookmark move --from 'heads(::@ & bookmarks())' --to @ && jj git push"
+abbr jgpp "jj bookmark move --from 'heads(::@- & bookmarks())' --to @- && jj git push"
+
+abbr jbm "jj bookmark move --from 'heads(::@ & bookmarks())' --to @"
+abbr jbmp "jj bookmark move --from 'heads(::@- & bookmarks())' --to @-"
+abbr jbmpp "jj bookmark move --from 'heads(::@-- & bookmarks())' --to @--"

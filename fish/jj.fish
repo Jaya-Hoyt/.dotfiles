@@ -3,7 +3,6 @@
 # Translated, adapted, and extended from hg.fish (Fig/Mercurial)
 # ==============================================================================
 
-
 # ------------------------------------------------------------------------------
 # 1. Visualization & Graph Log
 # ------------------------------------------------------------------------------
@@ -327,7 +326,6 @@ abbr jwsd --set-cursor 'jj piper citc delete %'
 # ------------------------------------------------------------------------------
 # Push (Matches gp / gpd / gpp)
 abbr jp 'jj git push'
-abbr jgp 'jj git push'
 abbr jgpa 'jj git push --all'
 abbr jpb --set-cursor 'jj git push -b %'
 abbr jgpb --set-cursor 'jj git push -b %'
@@ -359,6 +357,7 @@ abbr jgco 'jj git init --colocate'
 abbr jgcl --set-cursor 'jj git clone %'
 
 # Advance parent bookmark to commit to push (@-) and push to GitHub
+abbr jgp "jj bookmark move --from 'heads(::@- & bookmarks())' --to @- && jj git push"
 abbr jbp "jj bookmark move --from 'heads(::@- & bookmarks())' --to @- && jj git push"
 abbr jbmp "jj bookmark move --from 'heads(::@- & bookmarks())' --to @- && jj git push"
 abbr jbpt "jj bookmark move --from 'heads(::@ & bookmarks())' --to @ && jj git push"

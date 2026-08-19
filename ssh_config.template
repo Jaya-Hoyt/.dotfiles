@@ -5,6 +5,7 @@ Host main edit gemini
   RequestTTY yes
   ForwardAgent yes
   RemoteForward 9222 127.0.0.1:9222
+  LocalForward 9998 localhost.corp.google.com:9998
   ControlMaster auto
   ControlPath ~/.ssh/sockets/%r@%h-%p
   ControlPersist 20h

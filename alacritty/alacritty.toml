@@ -39,6 +39,21 @@ key = "Space"
 mods = "Control"
 chars = "\u0000"
 
+[[keyboard.bindings]]
+key = "V"
+mods = "Control"
+action = "Paste"
+
+[[keyboard.bindings]]
+key = "V"
+mods = "Super"
+action = "Paste"
+
+[[keyboard.bindings]]
+key = "C"
+mods = "Super"
+action = "Copy"
+
 # -----------------------------------------------------------------------------
 # TokyoNight Alacritty Colors
 # Theme: Tokyo Night Storm

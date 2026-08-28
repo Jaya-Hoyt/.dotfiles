@@ -12,3 +12,6 @@ fish/fish_variables
 jj/repos/
 jj/conf.d/local.toml
 .jetski_session
+local/bin/jj_watch.local.fish
+local/bin/jj_watch_test.local.fish
+*.local.fish

@@ -23,12 +23,8 @@ abbr jls 'jj log --stat'
 abbr jcl 'jj log -r \'@ | @-\' --no-pager --color=never | perl -nE \'if (m{\\b(cl/\\d+)\\b}) { print $1; exit; }\' | tty-copy -n'
 
 # Live status + graph dashboard watcher (replaces ft)
-abbr jt 'cd . \
-&& viddy --no-title --interval 1s \
-"cd \"$PWD\" \
-        && jj diff -s --color always \\
-        && printf \'\n\' \\
-        && jj log --ignore-working-copy --color always"'
+abbr jt 'jj_watch'
+abbr jtc 'jj_watch -c'
 
 # ------------------------------------------------------------------------------
 # 2. Status & Diffs

@@ -1,0 +1,362 @@
+#!/usr/bin/env fish
+
+# Detect stat format capability once at script load: GNU (-c) vs BSD (-f)
+if command stat -c '%Y:%s' /dev/null 2>/dev/null | string match -r -q '^[0-9]+:[0-9]+$'
+    function __jj_watch_file_stats
+        command stat -c '%Y:%s' $argv 2>/dev/null
+    end
+    function __jj_watch_file_mtime
+        command stat -c '%Y' $argv 2>/dev/null
+    end
+else
+    function __jj_watch_file_stats
+        command stat -f '%m:%z' $argv 2>/dev/null
+    end
+    function __jj_watch_file_mtime
+        command stat -f '%m' $argv 2>/dev/null
+    end
+end
+
+# Helper: Locate Git directory for colocated or non-colocated Jujutsu workspace.
+function __jj_watch_find_git_dir -a ws_root
+    if test -e "$ws_root/.git"
+        echo "$ws_root/.git"
+    else if test -f "$ws_root/.jj/repo/store/git_target"
+        read -l raw_target <"$ws_root/.jj/repo/store/git_target"
+        set -l target (string trim "$raw_target")
+        if string match -q "/*" "$target"
+            echo "$target"
+        else
+            echo "$ws_root/.jj/repo/store/$target"
+        end
+    end
+end
+
+# Helper: Probe working copy changes in a local Git-backed Jujutsu repository.
+function __jj_watch_probe_git -a ws_root
+    type -q git; or return 0
+
+    set -l git_dir (__jj_watch_find_git_dir "$ws_root")
+    test -n "$git_dir"; and test -e "$git_dir"; or return 0
+
+    set -l exclude_jjignore
+    test -f "$ws_root/.jjignore"; and set exclude_jjignore "--exclude-from=$ws_root/.jjignore"
+    set -l changed_files (command git --git-dir="$git_dir" --work-tree="$ws_root" ls-files -m -o --exclude-standard --exclude=.jj $exclude_jjignore 2>/dev/null)
+    if test (count $changed_files) -gt 0
+        set -l existing_files
+        for f in $changed_files
+            test -e "$ws_root/$f"; and set -a existing_files "$ws_root/$f"
+        end
+
+        set -l stats_str none
+        if test (count $existing_files) -gt 0
+            set -l stats (__jj_watch_file_stats $existing_files)
+            set -l joined (string join ',' -- $stats)
+            test -n "$joined"; and set stats_str "$joined"
+        end
+
+        set -l files_str (string join ',' -- $changed_files)
+        echo ":git_files=$files_str:git_stats=$stats_str"
+    else
+        echo ":git_files=clean"
+    end
+end
+
+# Helper: Probe workspace sentinels to produce a compact state fingerprint.
+function __jj_watch_probe -a ws_root commits_only
+    test (count $argv) -gt 2; and set commits_only $argv[-1]
+    test "$commits_only" != true; and set commits_only false
+
+    # 1. Custom / Environment Extension Workspace Probe
+    if functions -q __jj_watch_ext_probe
+        set -l ext_probe (__jj_watch_ext_probe "$ws_root" "$commits_only")
+        if test $status -eq 0
+            echo "$ext_probe"
+            return 0
+        end
+    end
+
+    set -l probe ""
+
+    # 2. Standard Git / Local Colocated JJ Workspace
+    set -l op_heads_dir "$ws_root/.jj/repo/op_heads/heads"
+    if test -d "$op_heads_dir"
+        set -l op_heads (command ls "$op_heads_dir" 2>/dev/null)
+        set probe "$probe:ops=$op_heads"
+    end
+
+    set -l checkout_file "$ws_root/.jj/working_copy/checkout"
+    if test -f "$checkout_file"
+        set -l chk_sum (command cksum "$checkout_file" 2>/dev/null)
+        set probe "$probe:checkout=$chk_sum"
+    end
+
+    set -l tree_state "$ws_root/.jj/working_copy/tree_state"
+    if test "$commits_only" != true; and test -f "$tree_state"
+        set -l tree_mtime (__jj_watch_file_mtime "$tree_state")
+        set probe "$probe:tree=$tree_mtime"
+    end
+
+    if test "$commits_only" != true
+        set -l git_probe (__jj_watch_probe_git "$ws_root")
+        set probe "$probe$git_probe"
+    end
+
+    echo "$probe"
+end
+
+# Helper: Redraw terminal with jj diff -s and jj log using double-buffering.
+# Optional extension hook: __jj_watch_ext_extra_flags target_or_root_dir
+function __jj_watch_render -a ws_root no_clear
+    set -l extra_flags
+    if functions -q __jj_watch_ext_extra_flags
+        set extra_flags (__jj_watch_ext_extra_flags "$ws_root")
+    end
+
+    set -lx GIT_CONFIG_SYSTEM /dev/null
+    set -lx PAGER cat
+    set -lx JJ_PAGER cat
+    set -lx DELTA_PAGER cat
+    set -lx GIT_PAGER cat
+
+    set -l rendered_content (
+        begin
+            set -l diff_output (jj --no-pager $extra_flags diff -s --color always 2>&1)
+            if test (count $diff_output) -gt 0
+                string join \n -- $diff_output
+                printf '\n'
+            end
+            jj --no-pager $extra_flags log --ignore-working-copy --color always
+        end 2>&1 | string collect -N -a
+    )
+
+    if test "$no_clear" = true
+        printf '%s' "$rendered_content"
+    else
+        printf '\033[?2026h\033[H\033[J%s\033[J\033[?2026l' "$rendered_content"
+    end
+end
+
+# Helper: Resolve target directory, invoking extension recovery if needed.
+function __jj_watch_resolve_target -a target_dir interval no_clear
+    test -z "$target_dir"; and return 0
+    builtin cd "$target_dir" 2>/dev/null; and return 0
+
+    if functions -q __jj_watch_ext_handle_cd_failure
+        __jj_watch_ext_handle_cd_failure "$target_dir" "$interval" "$no_clear"
+        and builtin cd "$target_dir" 2>/dev/null; and return 0
+    end
+
+    echo "ERROR: Cannot change directory to '$target_dir'." >&2
+    return 1
+end
+
+# Helper: Resolve Jujutsu workspace root, invoking extension recovery if needed.
+# Optional extension hook: __jj_watch_ext_extra_flags target_or_root_dir
+function __jj_watch_resolve_root -a watch_dir interval no_clear
+    set -l extra_flags
+    if functions -q __jj_watch_ext_extra_flags
+        set extra_flags (__jj_watch_ext_extra_flags "$watch_dir")
+    end
+
+    set -lx GIT_CONFIG_SYSTEM /dev/null
+    set -lx PAGER cat
+    set -lx JJ_PAGER cat
+    set -lx DELTA_PAGER cat
+    set -lx GIT_PAGER cat
+
+    set -l root (jj --no-pager $extra_flags root 2>/dev/null)
+
+    if test -z "$root"
+        if functions -q __jj_watch_ext_handle_root_failure
+            __jj_watch_ext_handle_root_failure "$watch_dir" "$interval" "$no_clear"
+            builtin cd "$watch_dir" 2>/dev/null
+            set root (jj --no-pager $extra_flags root 2>/dev/null)
+        end
+
+        if test -z "$root"
+            echo "ERROR: Not inside a Jujutsu (jj) repository or workspace." >&2
+            return 1
+        end
+    end
+
+    set -g _jj_watch_resolved_root "$root"
+    if status is-command-substitution
+        echo "$root"
+    end
+    return 0
+end
+
+# Helper: Core event/watch loop monitoring sentinels and triggering re-renders.
+function __jj_watch_loop -a ws_root watch_dir opts
+    set -l interval 1
+    set -l commits_only false
+    set -l no_clear false
+    if test -n "$opts"
+        set -l parts (string split ':' -- "$opts")
+        test -n "$parts[1]"; and set interval $parts[1]
+        test -n "$parts[2]"; and set commits_only $parts[2]
+        test -n "$parts[3]"; and set no_clear $parts[3]
+    end
+    test (count $argv) -ge 3; and not string match -q "*:*" "$argv[3]"; and set interval $argv[3]
+    test (count $argv) -ge 4; and not string match -q "*:*" "$argv[3]"; and set commits_only $argv[4]
+    test (count $argv) -ge 5; and not string match -q "*:*" "$argv[3]"; and set no_clear $argv[5]
+
+    set -l last_state (__jj_watch_probe "$ws_root" "$commits_only")
+
+    while sleep "$interval"
+        if functions -q __jj_watch_ext_check_workspace
+            __jj_watch_ext_check_workspace "$ws_root" "$watch_dir" "$interval:$no_clear"
+            switch $status
+                case 1
+                    continue
+                case 2
+                    __jj_watch_render "$ws_root" "$no_clear"
+                    set last_state (__jj_watch_probe "$ws_root" "$commits_only")
+                    continue
+                case 3
+                    echo "ERROR: Workspace '$ws_root' is no longer accessible." >&2
+                    return 1
+            end
+        end
+
+        set -l current_state (__jj_watch_probe "$ws_root" "$commits_only")
+        if test "$current_state" != "$last_state"
+            __jj_watch_render "$ws_root" "$no_clear"
+            set last_state (__jj_watch_probe "$ws_root" "$commits_only")
+        end
+    end
+
+    return 0
+end
+
+# Helper: Extension loader discovering and sourcing environment extensions
+function __jj_watch_load_extensions
+    test "$JJ_WATCH_EXTENSION" = "/dev/null"; and return 0
+
+    set -l candidates
+    if test -n "$JJ_WATCH_EXTENSION"
+        set -a candidates "$JJ_WATCH_EXTENSION"
+    else
+        set -l config_dir "$__fish_config_dir"
+        test -z "$config_dir"; and set config_dir (test -n "$XDG_CONFIG_HOME"; and echo "$XDG_CONFIG_HOME/fish"; or echo "$HOME/.config/fish")
+        test -n "$config_dir"; and set -a candidates "$config_dir/jj_watch.local.fish"
+
+        set -l script_dir (path dirname (path resolve (status filename)) 2>/dev/null; or status dirname)
+        set -a candidates "$script_dir/jj_watch.local.fish"
+    end
+
+    for ext in $candidates
+        if test -f "$ext" -a -r "$ext"
+            source "$ext"
+            break
+        end
+    end
+    return 0
+end
+
+# Helper: Safely restore caller working directory.
+function __jj_watch_restore_dir -a orig_dir
+    test -n "$orig_dir"; and test "$PWD" != "$orig_dir"; and builtin cd "$orig_dir"
+end
+
+# Main script logic function
+function jj_watch -a target_dir opts
+    set -l interval 1
+    set -l commits_only false
+    set -l run_once false
+    set -l no_clear false
+    if test -n "$opts"
+        set -l parts (string split ':' -- "$opts")
+        test -n "$parts[1]"; and set interval $parts[1]
+        test -n "$parts[2]"; and set commits_only $parts[2]
+        test -n "$parts[3]"; and set run_once $parts[3]
+        test -n "$parts[4]"; and set no_clear $parts[4]
+    end
+    # Backward compatibility for positional argument callers (e.g. in tests)
+    test (count $argv) -ge 2; and not string match -q "*:*" "$argv[2]"; and set interval $argv[2]
+    test (count $argv) -ge 3; and not string match -q "*:*" "$argv[2]"; and set commits_only $argv[3]
+    test (count $argv) -ge 4; and not string match -q "*:*" "$argv[2]"; and set run_once $argv[4]
+    test (count $argv) -ge 5; and not string match -q "*:*" "$argv[2]"; and set no_clear $argv[5]
+
+    set -l orig_dir $PWD
+
+    __jj_watch_resolve_target "$target_dir" "$interval" "$no_clear"
+    or begin
+        __jj_watch_restore_dir "$orig_dir"
+        return 1
+    end
+
+    set -l watch_dir $PWD
+
+    set -e _jj_watch_resolved_root
+    __jj_watch_resolve_root "$watch_dir" "$interval" "$no_clear"
+    or begin
+        __jj_watch_restore_dir "$orig_dir"
+        return 1
+    end
+    set -l ws_root "$_jj_watch_resolved_root"
+    set -e _jj_watch_resolved_root
+
+    __jj_watch_render "$ws_root" "$no_clear"
+
+    if test "$run_once" = true
+        __jj_watch_restore_dir "$orig_dir"
+        return 0
+    end
+
+    __jj_watch_loop "$ws_root" "$watch_dir" "$interval:$commits_only:$no_clear"
+    set -l loop_status $status
+
+    __jj_watch_restore_dir "$orig_dir"
+    return $loop_status
+end
+
+# Load extensions immediately before execution
+__jj_watch_load_extensions
+
+# CLI entrypoint: Only execute when script is run directly, not when sourced.
+if not string match -q -- "*from sourcing file*" (status)
+    set -l _options h/help c/commits-only 1/once 'i/interval=' no-clear
+    argparse -n jj_watch $_options -- $argv
+    or exit 1
+
+    if set -q _flag_help
+        echo "Usage: jj_watch [OPTIONS] [DIRECTORY]"
+        echo ""
+        echo "Watch Jujutsu (jj) workspace and render live diff and graph dashboard."
+        echo ""
+        echo "Options:"
+        echo "  -c, --commits-only  Ignore working copy file changes; only refresh on commits"
+        echo "  -i, --interval=SEC  Polling interval in seconds (default: 1)"
+        echo "  -1, --once          Render dashboard once and exit"
+        echo "      --no-clear      Do not clear screen before rendering"
+        echo "  -h, --help          Show this help message and exit"
+        exit 0
+    end
+
+    if test (count $argv) -gt 1
+        echo "jj_watch: Unexpected argument: $argv[2]" >&2
+        exit 1
+    end
+
+    set -l commits_only false
+    set -q _flag_commits_only; and set commits_only true
+
+    set -l run_once false
+    set -q _flag_once; and set run_once true
+
+    set -l no_clear false
+    set -q _flag_no_clear; and set no_clear true
+
+    set -l interval 1
+    set -q _flag_interval; and set interval "$_flag_interval"
+
+    set -l target_dir ""
+    if test (count $argv) -gt 0
+        set target_dir "$argv[1]"
+    end
+
+    jj_watch "$target_dir" "$interval:$commits_only:$run_once:$no_clear"
+    exit $status
+end

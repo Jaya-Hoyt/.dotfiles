@@ -64,6 +64,7 @@
     ~/.local/bin/angular_switch.ts: local/bin/angular_switch.ts
     ~/.local/bin/dictate: dictate
     ~/.local/bin/gs: local/bin/gs
+    ~/.local/bin/jj_watch: local/bin/jj_watch
     ~/.local/bin/kokoro-server: kokoro-server
     ~/.local/bin/mass_rename.ts: local/bin/mass_rename.ts
     ~/.local/bin/ppr: local/bin/ppr

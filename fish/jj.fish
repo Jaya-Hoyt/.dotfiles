@@ -23,7 +23,7 @@ abbr jls 'jj log --stat'
 abbr jcl 'jj log -r \'@ | @-\' --no-pager --color=never | perl -nE \'if (m{\\b(cl/\\d+)\\b}) { print $1; exit; }\' | tty-copy -n'
 
 # Live status + graph dashboard watcher (replaces ft)
-abbr jt 'jj_watch'
+abbr jt jj_watch
 abbr jtc 'jj_watch -c'
 
 # ------------------------------------------------------------------------------
@@ -226,7 +226,7 @@ abbr jrcpp 'jj restore -c @--'
 abbr jrcr --set-cursor 'jj restore -c %'
 
 # Discard/Abandon commit or specific revision (replaces hdp) - defaults to @ (working copy)
-abbr jabd 'jj abandon @'
+abbr jabd 'jj abandon'
 abbr jabdp 'jj abandon @-'
 abbr jabdpp 'jj abandon @--'
 abbr jabdr --set-cursor 'jj abandon %'

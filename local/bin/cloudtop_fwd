@@ -1,0 +1,210 @@
+#!/usr/bin/env fish
+# cloudtop_fwd: run the Cloudtop port forwards (Panini devserver on :9998 and
+# Chrome DevTools/Playwright on :9222) over their own SSH connection.
+#
+# Keeping bulk forwarded traffic off the interactive tmux/shpool connection
+# stops page loads and Playwright CDP traffic from queuing ahead of keystrokes.
+# The forwards are defined by `Host cloudtop-fwd` in ssh_config.template.
+
+# Prints (and creates) the directory holding the pidfile and log.
+function __cloudtop_fwd_state_dir
+    set dir $HOME/.local/state
+    set -q XDG_STATE_HOME; and set dir $XDG_STATE_HOME
+    set dir $dir/cloudtop_fwd
+    mkdir -p $dir
+    echo $dir
+end
+
+# Prints the reconnect loop's PID if it is running; returns 1 otherwise.
+function __cloudtop_fwd_running_pid
+    set pidfile (__cloudtop_fwd_state_dir)/loop.pid
+    test -f $pidfile; or return 1
+    read -l pid <$pidfile
+    if test -n "$pid"; and kill -0 $pid 2>/dev/null
+        echo $pid
+        return 0
+    end
+    return 1
+end
+
+# Prints the command holding a local TCP listener on the given port, if any.
+function __cloudtop_fwd_port_owner -a port
+    type -q lsof; or return 1
+    set owner (command lsof -nP -iTCP:$port -sTCP:LISTEN -Fc 2>/dev/null | string match -r '^c.*' | string sub -s 2)
+    test -n "$owner"; or return 1
+    echo $owner[1]
+end
+
+# Starts the reconnect loop detached from the terminal and records its PID.
+function __cloudtop_fwd_spawn -a host log pidfile
+    set script (functions --details cloudtop_fwd)
+    command nohup fish $script --host $host __loop </dev/null >>$log 2>&1 &
+    echo $last_pid >$pidfile
+    disown $last_pid 2>/dev/null
+end
+
+# Runs a command with a hard deadline, printing its stdout. Returns 1 if the
+# command had to be killed. ConnectTimeout does not bound a session that
+# multiplexes onto an existing control socket, so a probe through a half-dead
+# master could otherwise hang. macOS ships no timeout(1).
+function __cloudtop_fwd_with_deadline -a seconds
+    set out (mktemp)
+    $argv[2..-1] >$out 2>/dev/null &
+    set pid $last_pid
+    for tick in (seq (math "round($seconds * 10)"))
+        if not kill -0 $pid 2>/dev/null
+            wait $pid 2>/dev/null
+            cat $out
+            rm -f $out
+            return 0
+        end
+        command sleep 0.1
+    end
+    kill -TERM $pid 2>/dev/null
+    command sleep 0.2
+    kill -KILL $pid 2>/dev/null
+    wait $pid 2>/dev/null
+    rm -f $out
+    return 1
+end
+
+# Succeeds if local Chrome is serving the DevTools protocol on :9222.
+function __cloudtop_fwd_local_cdp_ok
+    command curl -s -o /dev/null --max-time 3 http://127.0.0.1:9222/json/version
+end
+
+# Succeeds if an SSH master is running for the given host alias.
+function __cloudtop_fwd_master_alive -a probe_host
+    ssh -O check $probe_host 2>/dev/null
+end
+
+# Asks the Cloudtop for a real HTTP response from local Chrome through the 9222
+# RemoteForward. A listening socket is not proof: a stale listener left by a
+# dead session can hold the port while forwarding nothing. The probe
+# multiplexes onto the interactive master (so it needs no security-key touch)
+# and clears forwards and the shpool RemoteCommand so it cannot fight either.
+function __cloudtop_fwd_remote_cdp_ok -a probe_host
+    set code (__cloudtop_fwd_with_deadline 20 \
+        ssh -o RemoteCommand=none -o ClearAllForwardings=yes \
+        -o BatchMode=yes -o ConnectTimeout=10 $probe_host \
+        "curl -s -o /dev/null -w '%{http_code}' --max-time 5 127.0.0.1:9222/json/version")
+    test "$code" = 200
+end
+
+# Keeps `ssh -N <host>` running, reconnecting with exponential backoff.
+function __cloudtop_fwd_loop -a host
+    set delay 2
+    while true
+        set started (date +%s)
+        echo (date '+%F %T') "connecting to $host"
+        ssh -N $host </dev/null
+        set code $status
+        set ran (math (date +%s) - $started)
+        echo (date '+%F %T') "ssh exited with status $code after $ran s"
+        # A connection that stayed up for a while dropped for a new reason
+        # (e.g. laptop sleep), so retry quickly instead of backing off.
+        test $ran -ge 60; and set delay 2
+        sleep $delay; or return 0
+        set delay (math "min($delay * 2, 60)")
+    end
+end
+
+function cloudtop_fwd -a cmd host
+    test -n "$host"; or set host cloudtop-fwd
+    set state_dir (__cloudtop_fwd_state_dir)
+    set pidfile $state_dir/loop.pid
+    set log $state_dir/cloudtop_fwd.log
+
+    switch "$cmd"
+        case start
+            if set pid (__cloudtop_fwd_running_pid)
+                echo "cloudtop_fwd is already running (pid $pid)."
+                return 0
+            end
+            if set owner (__cloudtop_fwd_port_owner 9998)
+                echo "ERROR: local port 9998 is already held by '$owner'." >&2
+                echo "If that is the old interactive connection, release it with:" >&2
+                echo "  ssh -O cancel -L 9998:localhost.corp.google.com:9998 main" >&2
+                echo "  ssh -O cancel -R 9222:127.0.0.1:9222 main" >&2
+                echo "or close the old shared connection with 'ssh -O exit main'" >&2
+                echo "(scloud reconnects using the regenerated ~/.ssh/scloud_config)." >&2
+                return 1
+            end
+            __cloudtop_fwd_spawn $host $log $pidfile
+            echo "cloudtop_fwd started (pid "(cat $pidfile)") -> $host. Touch your security key if it blinks."
+            echo "Log: $log"
+        case stop
+            if not set pid (__cloudtop_fwd_running_pid)
+                echo "cloudtop_fwd is not running."
+                rm -f $pidfile
+                return 0
+            end
+            # Capture the ssh child before killing the loop so it cannot respawn.
+            set children (command pgrep -P $pid 2>/dev/null)
+            kill $pid 2>/dev/null
+            test -n "$children"; and kill $children 2>/dev/null
+            rm -f $pidfile
+            echo "cloudtop_fwd stopped."
+        case restart
+            cloudtop_fwd stop $host; and cloudtop_fwd start $host
+        case status
+            set healthy 0
+            if set pid (__cloudtop_fwd_running_pid)
+                echo "cloudtop_fwd is running (pid $pid) -> $host."
+            else
+                echo "cloudtop_fwd is not running."
+                set healthy 1
+            end
+            if set owner (__cloudtop_fwd_port_owner 9998)
+                echo "Local :9998 is held by '$owner'."
+            end
+            if test $healthy -eq 0
+                if not __cloudtop_fwd_local_cdp_ok
+                    echo "CDP: nothing serves 127.0.0.1:9222 locally; start Chrome with --remote-debugging-port=9222."
+                else if not __cloudtop_fwd_master_alive main
+                    echo "CDP: skipped the end-to-end check (no 'main' master to probe through)."
+                else if __cloudtop_fwd_remote_cdp_ok main
+                    echo "CDP: the Cloudtop reaches local Chrome through :9222."
+                else
+                    echo "CDP: the Cloudtop cannot reach local Chrome through :9222. Try 'cloudtop_fwd restart'."
+                    set healthy 1
+                end
+            end
+            if test -f $log
+                echo "Recent log:"
+                tail -n 5 $log
+            end
+            return $healthy
+        case logs
+            test -f $log; and tail -n 40 $log
+        case __loop
+            __cloudtop_fwd_loop $host
+        case '*'
+            echo "ERROR: unknown command '$cmd'. Expected start, stop, restart, status, or logs." >&2
+            return 1
+    end
+end
+
+if not string match -q -- "*from sourcing file*" (status)
+    argparse -n cloudtop_fwd h/help 'H/host=' -- $argv
+    or exit 1
+
+    if set -q _flag_help; or test (count $argv) -eq 0
+        echo "Usage: cloudtop_fwd [--host HOST] <start|stop|restart|status|logs>"
+        echo ""
+        echo "Run the Cloudtop port forwards (:9998 Panini, :9222 Chrome DevTools)"
+        echo "over a dedicated SSH connection, separate from the interactive session."
+        echo ""
+        echo "Options:"
+        echo "  -H, --host=HOST  ssh_config host to connect to (default: cloudtop-fwd)"
+        echo "  -h, --help       Show this help message and exit"
+        set -q _flag_help; and exit 0
+        exit 1
+    end
+
+    set host cloudtop-fwd
+    set -q _flag_host; and set host $_flag_host
+
+    cloudtop_fwd $argv[1] $host
+    exit $status
+end

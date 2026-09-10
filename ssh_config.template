@@ -8,25 +8,25 @@
 # second block declaring the same forward is what broke CDP debugging before.
 
 # Interactive shell, auto-attaching to shpool + tmux.
-# Owns the shared port forwards for this machine.
+#
+# Declares no port forwards on purpose: `Host cloudtop-fwd` owns 9222 and 9998.
+# Bulk forwarded traffic (Panini page loads, Playwright/CDP) shares one TCP
+# stream with keystrokes when it rides this connection, and queues ahead of
+# them for seconds at a time.
 Host main edit gemini
   HostName {{SCLOUD_HOST}}
   RemoteCommand printf '\033[?2004h'; exec shpool attach -f %k -c "tmux new -A -s %k"
   RequestTTY yes
   ForwardAgent yes
-  RemoteForward 9222 127.0.0.1:9222
-  LocalForward 9998 localhost.corp.google.com:9998
 
-  # Do NOT add `ExitOnForwardFailure yes` to this block. Forwards belong to the
-  # master, so every *secondary* `ssh main` re-requests them and fails: 9998 is
-  # already bound locally and 9222 is already registered. ExitOnForwardFailure
-  # turns those harmless warnings into exit 255, which kills concurrent sessions
-  # and sends `scloud` into an infinite reconnect loop, since it retries on 255.
-  # Run `cdp-repair` to detect and fix a dead tunnel instead.
+  # Do NOT add `ExitOnForwardFailure yes` to this block. Every *secondary*
+  # `ssh main` multiplexes onto the master and re-requests any forwards, which
+  # fail harmlessly; ExitOnForwardFailure turns that into exit 255, which kills
+  # concurrent sessions and sends `scloud` into an infinite reconnect loop.
 
   # The global /etc/ssh/ssh_config.d/google_ssh_config sets ServerAliveCountMax
   # 20, so a master whose connection has died keeps its control socket for ~10
-  # minutes while new sessions multiplex onto a tunnel that no longer works.
+  # minutes while new sessions multiplex onto a connection that no longer works.
   # Fail fast instead (3 x 30s = 90s): shpool and tmux preserve remote state, so
   # losing the transport is cheap, and the next connect builds a fresh master.
   ServerAliveInterval 30
@@ -39,9 +39,9 @@ Host main edit gemini
 # Plain shell on the same machine, with no shpool/tmux auto-attach. Useful for
 # scripts and one-off commands.
 #
-# Declares no port forwards on purpose. `Host main` owns 9222 and 9998; when
-# both blocks declared them, only one could bind and the loser failed with a
-# warning that was easy to miss. No LogLevel QUIET here for the same reason --
+# Declares no port forwards on purpose. `Host cloudtop-fwd` owns 9222 and 9998;
+# when two blocks declared them, only one could bind and the loser failed with
+# a warning that was easy to miss. No LogLevel QUIET here for the same reason --
 # it hid that warning.
 Host cloudtop
   HostName {{SCLOUD_HOST}}
@@ -52,3 +52,26 @@ Host cloudtop
   ConnectTimeout 60
   ConnectionAttempts 2
   SendEnv COLORTERM
+
+# Port forwards on a dedicated connection, started on demand with
+# `cloudtop_fwd start`. Keeping them off the interactive connection above stops
+# Panini page loads (9998) and Playwright/CDP traffic (9222) from queuing ahead
+# of keystrokes.
+#
+# ExitOnForwardFailure is safe -- and wanted -- here, unlike on `Host main`:
+# this connection never multiplexes (ControlMaster no) and cloudtop_fwd runs a
+# single instance, so a failed forward means the tunnel is genuinely broken
+# (typically a stale 9222 listener left on the Cloudtop by a dead session).
+# Exiting lets cloudtop_fwd's reconnect loop retry until sshd reaps it, instead
+# of holding up a connection that forwards nothing.
+Host cloudtop-fwd
+  HostName {{SCLOUD_HOST}}
+  RequestTTY no
+  ForwardAgent no
+  ControlMaster no
+  ControlPath none
+  ExitOnForwardFailure yes
+  ServerAliveInterval 15
+  ServerAliveCountMax 3
+  LocalForward 9998 localhost.corp.google.com:9998
+  RemoteForward 9222 127.0.0.1:9222

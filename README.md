@@ -57,23 +57,34 @@ can bind the port, and the loser prints a warning that is easy to miss while
 the tunnel silently never works. `setup_dotfiles` warns if `~/.ssh/config`
 redeclares a port the generated file already owns.
 
-Because forwards belong to the SSH *master* connection, a master whose TCP
-connection has died keeps its control socket for a while, and reconnecting your
-terminal just reattaches to the same broken master. [cdp-repair](local/bin/cdp-repair)
-rebinds the Chrome DevTools forward on the live master without dropping your
-shpool/tmux session:
+### Port forwards run on their own connection
+
+The Panini devserver (`LocalForward 9998`) and Chrome DevTools
+(`RemoteForward 9222`) forwards live on `Host cloudtop-fwd`, not on the
+interactive `Host main` connection. On a shared connection, a cold page load or
+a Playwright run queues megabytes of traffic ahead of your keystrokes, which
+shows up as the terminal lagging seconds behind input.
+
+[cloudtop_fwd](local/bin/cloudtop_fwd) starts that connection on demand and
+keeps it up with a reconnect loop:
 
 ```bash
-cdp-repair           # check, and repair only if actually broken
-cdp-repair --check   # report health, change nothing
-cdp-repair --force   # kill the master (last resort)
+cloudtop_fwd start     # background reconnect loop; touch your key if it blinks
+cloudtop_fwd status    # checks end to end that the Cloudtop reaches your Chrome
+cloudtop_fwd restart   # fix a dead tunnel without touching your shpool/tmux session
+cloudtop_fwd stop
+cloudtop_fwd logs
 ```
+
+If `start` reports that local :9998 is already held, an old `main` master still
+owns the forwards from before they moved; release them with `ssh -O exit main`
+(`scloud` reconnects with the regenerated config).
 
 ## Tests
 
 Fish scripts are tested with [fishtape](https://github.com/jorgebucaran/fishtape):
 
 ```bash
-fishtape local/bin/cdp-repair_test.fish
+fishtape local/bin/cloudtop_fwd_test.fish
 fishtape local/bin/jj_watch_test.fish
 ```

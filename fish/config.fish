@@ -161,11 +161,13 @@ if status is-interactive
     # Set MISE_ENV: 'google' on Google workstations, 'personal' on personal machines
     if test -x /usr/bin/jj; and string match -q "*google*" (/usr/bin/jj --version 2>/dev/null)
         set -gx MISE_ENV google
+        set -gx MISE_IGNORED_CONFIG_PATHS /google/src
     else
         set -gx MISE_ENV personal
     end
 
     if type -q mise
+        set -gx mise_fish_mode eval_after_arrow
         mise activate fish | source
     end
 

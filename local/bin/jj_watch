@@ -62,6 +62,166 @@ function __jj_watch_probe_git -a ws_root
     end
 end
 
+# Helper: Clean up comments probe background jobs and temporary files.
+function __jj_watch_cleanup_comments
+    if set -q _jj_watch_comments_bg_pid; and test "$_jj_watch_comments_bg_pid" -gt 0
+        command kill -9 "$_jj_watch_comments_bg_pid" 2>/dev/null
+        set -g _jj_watch_comments_bg_pid 0
+    end
+    if set -q _jj_watch_comments_file; and test -n "$_jj_watch_comments_file"
+        command rm -f "$_jj_watch_comments_file" "$_jj_watch_comments_file.tmp" 2>/dev/null
+    end
+    if set -q _jj_watch_in_alt_screen; and test "$_jj_watch_in_alt_screen" = true
+        printf '\033[?1049l'
+        set -e _jj_watch_in_alt_screen
+    end
+    set -e _jj_watch_comments_cache
+    set -e _jj_watch_comments_bg_pid
+    set -e _jj_watch_comments_last_spawn
+    set -e _jj_watch_comments_file
+    set -e _jj_watch_comments_ws
+    set -e _jj_watch_comments_has_cl
+end
+
+# Event handlers for comment probe cleanup on process exit and Ctrl-C (SIGINT)
+function __jj_watch_comments_on_exit --on-process-exit %self
+    __jj_watch_cleanup_comments
+end
+
+function __jj_watch_comments_on_signal --on-signal INT --on-signal TERM
+    set -g _jj_watch_interrupted 1
+    __jj_watch_cleanup_comments
+end
+
+# Helper: Probe review comments and changelist status asynchronously
+function __jj_watch_probe_comments -a ws_root
+    test -n "$ws_root"; or return 0
+    test -d "$ws_root/.jj/repo"; or return 0
+
+    if functions -q __jj_watch_ext_probe_comments
+        __jj_watch_ext_probe_comments "$ws_root"
+        return $status
+    end
+
+    # Reset state if workspace changed
+    if not set -q _jj_watch_comments_ws; or test "$_jj_watch_comments_ws" != "$ws_root"
+        if set -q _jj_watch_comments_bg_pid; and test "$_jj_watch_comments_bg_pid" -gt 0
+            command kill -9 "$_jj_watch_comments_bg_pid" 2>/dev/null
+        end
+        if set -q _jj_watch_comments_file; and test -n "$_jj_watch_comments_file"
+            command rm -f "$_jj_watch_comments_file" "$_jj_watch_comments_file.tmp" 2>/dev/null
+        end
+        set -g _jj_watch_comments_ws "$ws_root"
+        set -g _jj_watch_comments_cache ""
+        set -g _jj_watch_comments_bg_pid 0
+        set -g _jj_watch_comments_last_spawn 0
+        set -g _jj_watch_comments_has_cl 1
+        set -l ws_cksum (echo "$fish_pid"_"$ws_root" | command cksum | string match -r '^[0-9]+')
+        set -g _jj_watch_comments_file "/tmp/jj_watch_comments_$ws_cksum"
+    end
+
+    set -l tmp_file "$_jj_watch_comments_file"
+    set -l tmp_next "$tmp_file.tmp"
+
+    # 1. Ingest latest result from completed background check
+    if test -f "$tmp_file"
+        begin
+            read -l new_val
+            read -l new_has_cl
+            if test -n "$new_val"
+                set -g _jj_watch_comments_cache "$new_val"
+            end
+            if test -n "$new_has_cl"
+                set -g _jj_watch_comments_has_cl "$new_has_cl"
+            end
+        end <"$tmp_file"
+    end
+
+    # 2. Check background worker liveness with timeout watchdog
+    set -l now (date +%s)
+    if test "$_jj_watch_comments_bg_pid" -gt 0
+        if not command kill -0 "$_jj_watch_comments_bg_pid" 2>/dev/null
+            set -g _jj_watch_comments_bg_pid 0
+        else if test (math "$now - $_jj_watch_comments_last_spawn") -gt 30
+            command kill -9 "$_jj_watch_comments_bg_pid" 2>/dev/null
+            command rm -f "$tmp_next" 2>/dev/null
+            set -g _jj_watch_comments_bg_pid 0
+        end
+    end
+
+    # Determine adaptive poll interval:
+    # - 15s (or $JJ_WATCH_COMMENTS_INTERVAL) when workspace has exported CLs
+    # - 60s when workspace has no exported CLs
+    # - disabled (-1) if jj does not support changelist_data(self)
+    set -l poll_interval (set -q JJ_WATCH_COMMENTS_INTERVAL; and echo "$JJ_WATCH_COMMENTS_INTERVAL"; or echo 15)
+    if set -q _jj_watch_comments_has_cl; and test "$_jj_watch_comments_has_cl" -eq 0
+        set poll_interval 60
+    end
+
+    # 3. Synchronous probe on first invocation so initial state has comments
+    if test "$_jj_watch_comments_last_spawn" -eq 0
+        set -g _jj_watch_comments_last_spawn $now
+        set -l extra_flags
+        if functions -q __jj_watch_ext_extra_flags
+            set extra_flags (__jj_watch_ext_extra_flags "$ws_root")
+        end
+        set -lx GIT_CONFIG_SYSTEM /dev/null
+        set -lx PAGER cat
+        set -lx JJ_PAGER cat
+        set -lx DELTA_PAGER cat
+        set -lx GIT_PAGER cat
+        set -l out (jj --no-pager --ignore-working-copy $extra_flags -R "$ws_root" log -T 'separate(":", change_id.short(), changelist_data(self)) ++ "\n"' --no-graph 2>/dev/null)
+        if test $status -eq 0
+            set -l ck (string join \n -- $out | command cksum 2>/dev/null)
+            set ck (string trim "$ck")
+            if string match -q "*:*" -- $out
+                set -g _jj_watch_comments_has_cl 1
+            else
+                set -g _jj_watch_comments_has_cl 0
+            end
+            if test -n "$ck"
+                set -g _jj_watch_comments_cache "$ck"
+                printf '%s\n%s\n' "$ck" "$_jj_watch_comments_has_cl" >"$tmp_file"
+            end
+        else
+            set -g _jj_watch_comments_has_cl -1
+        end
+    else if test "$_jj_watch_comments_has_cl" -ge 0; and test "$_jj_watch_comments_bg_pid" -eq 0; and test (math "$now - $_jj_watch_comments_last_spawn") -ge "$poll_interval"
+        # 4. Asynchronous non-blocking background probe throttled by poll_interval
+        set -g _jj_watch_comments_last_spawn $now
+        set -l extra_flags
+        if functions -q __jj_watch_ext_extra_flags
+            set extra_flags (__jj_watch_ext_extra_flags "$ws_root")
+        end
+        fish -c '
+            set -l ws "$argv[1]"
+            set -l tf "$argv[2]"
+            set -l tn "$argv[3]"
+            set -l flags $argv[4..-1]
+            set -lx GIT_CONFIG_SYSTEM /dev/null
+            set -lx PAGER cat
+            set -lx JJ_PAGER cat
+            set -lx DELTA_PAGER cat
+            set -lx GIT_PAGER cat
+            set -l out (jj --no-pager --ignore-working-copy $flags -R "$ws" log -T "separate(\":\", change_id.short(), changelist_data(self)) ++ \"\n\"" --no-graph 2>/dev/null)
+            if test $status -eq 0
+                set -l has_cl 0
+                string match -q "*:*" -- $out; and set has_cl 1
+                set -l ck (string join \n -- $out | command cksum 2>/dev/null | string trim)
+                if test -n "$ck"
+                    printf "%s\n%s\n" "$ck" "$has_cl" >"$tn" 2>/dev/null
+                    and command mv -f "$tn" "$tf"
+                end
+            end
+        ' -- "$ws_root" "$tmp_file" "$tmp_next" $extra_flags &
+        set -g _jj_watch_comments_bg_pid $last_pid
+    end
+
+    if test -n "$_jj_watch_comments_cache"
+        echo ":comments=$_jj_watch_comments_cache"
+    end
+end
+
 # Helper: Probe workspace sentinels to produce a compact state fingerprint.
 function __jj_watch_probe -a ws_root commits_only
     test (count $argv) -gt 2; and set commits_only $argv[-1]
@@ -101,6 +261,9 @@ function __jj_watch_probe -a ws_root commits_only
         set -l git_probe (__jj_watch_probe_git "$ws_root")
         set probe "$probe$git_probe"
     end
+
+    set -l comments_probe (__jj_watch_probe_comments "$ws_root")
+    set probe "$probe$comments_probe"
 
     echo "$probe"
 end
@@ -202,9 +365,13 @@ function __jj_watch_loop -a ws_root watch_dir opts
     test (count $argv) -ge 4; and not string match -q "*:*" "$argv[3]"; and set commits_only $argv[4]
     test (count $argv) -ge 5; and not string match -q "*:*" "$argv[3]"; and set no_clear $argv[5]
 
+    set -e _jj_watch_interrupted
     set -l last_state (__jj_watch_probe "$ws_root" "$commits_only")
 
     while sleep "$interval"
+        if set -q _jj_watch_interrupted
+            break
+        end
         if functions -q __jj_watch_ext_check_workspace
             __jj_watch_ext_check_workspace "$ws_root" "$watch_dir" "$interval:$no_clear"
             switch $status
@@ -216,6 +383,7 @@ function __jj_watch_loop -a ws_root watch_dir opts
                     continue
                 case 3
                     echo "ERROR: Workspace '$ws_root' is no longer accessible." >&2
+                    __jj_watch_cleanup_comments
                     return 1
             end
         end
@@ -227,12 +395,13 @@ function __jj_watch_loop -a ws_root watch_dir opts
         end
     end
 
+    __jj_watch_cleanup_comments
     return 0
 end
 
 # Helper: Extension loader discovering and sourcing environment extensions
 function __jj_watch_load_extensions
-    test "$JJ_WATCH_EXTENSION" = "/dev/null"; and return 0
+    test "$JJ_WATCH_EXTENSION" = /dev/null; and return 0
 
     set -l candidates
     if test -n "$JJ_WATCH_EXTENSION"
@@ -298,6 +467,11 @@ function jj_watch -a target_dir opts
     set -l ws_root "$_jj_watch_resolved_root"
     set -e _jj_watch_resolved_root
 
+    if test "$run_once" != true -a "$no_clear" != true; and isatty stdout
+        set -g _jj_watch_in_alt_screen true
+        printf '\033[?1049h'
+    end
+
     __jj_watch_render "$ws_root" "$no_clear"
 
     if test "$run_once" = true
@@ -307,6 +481,11 @@ function jj_watch -a target_dir opts
 
     __jj_watch_loop "$ws_root" "$watch_dir" "$interval:$commits_only:$no_clear"
     set -l loop_status $status
+
+    if set -q _jj_watch_in_alt_screen; and test "$_jj_watch_in_alt_screen" = true
+        printf '\033[?1049l'
+        set -e _jj_watch_in_alt_screen
+    end
 
     __jj_watch_restore_dir "$orig_dir"
     return $loop_status

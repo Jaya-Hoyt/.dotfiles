@@ -6,11 +6,14 @@ function setup_hermetic_env
         __jj_watch_ext_extra_flags __jj_watch_ext_probe \
         __jj_watch_ext_handle_cd_failure __jj_watch_ext_handle_root_failure \
         __jj_watch_ext_check_workspace \
-        __jj_watch_file_stats __jj_watch_file_mtime
+        __jj_watch_file_stats __jj_watch_file_mtime \
+        __jj_watch_probe_comments __jj_watch_ext_probe_comments
 
     # Clean up test-scoped global variables
     set -e recorded_jj_calls recorded_pagers root_call_args bytes_at_diff bytes_at_log \
-        err_bytes_at_diff err_bytes_at_log render_count sleep_count loop_sleeps ext_step
+        err_bytes_at_diff err_bytes_at_log render_count sleep_count loop_sleeps ext_step \
+        _jj_watch_comments_cache _jj_watch_comments_bg_pid _jj_watch_comments_last_spawn \
+        _jj_watch_comments_file _jj_watch_comments_ws mock_comments_state
 
     # Strictly isolate public tests from any workstation extensions
     set -gx JJ_WATCH_EXTENSION /dev/null
@@ -1183,3 +1186,136 @@ else:
         echo "fail: gnu_has_tree=$gnu_has_tree gnu_leak=$gnu_superblock_leak gnu_missing=$gnu_missing_empty bsd_has_tree=$bsd_has_tree bsd_leak=$bsd_superblock_leak bsd_missing=$bsd_missing_empty probe_gnu=$probe_gnu probe_bsd=$probe_bsd"
     end
 ) = pass
+
+@test "__jj_watch_probe_comments returns empty string when not inside jj repo" (
+    setup_hermetic_env
+
+    set -l tmp (mktemp -d)
+    set -l res (__jj_watch_probe_comments "$tmp")
+    rm -rf "$tmp"
+
+    test -z "$res"
+    echo $status
+) = 0
+
+@test "__jj_watch_probe_comments formats comments token when jj returns comments state" (
+    setup_hermetic_env
+
+    set -l tmp (mktemp -d)
+    mkdir -p "$tmp/.jj/repo"
+
+    function jj
+        echo "cl100:http://cl/100 (2 unresolved)"
+        return 0
+    end
+
+    set -l res (__jj_watch_probe_comments "$tmp")
+    rm -rf "$tmp"
+
+    string match -q "*:comments=*" "$res"
+    echo $status
+) = 0
+
+@test "__jj_watch_probe_comments detects comments change when unresolved comments become resolved" (
+    setup_hermetic_env
+
+    set -l tmp (mktemp -d)
+    mkdir -p "$tmp/.jj/repo"
+
+    set -g mock_comments_state "(1 unresolved)"
+    function jj
+        echo "cl100:http://cl/100 $mock_comments_state"
+        return 0
+    end
+
+    # Initial probe with unresolved comment
+    set -l probe1 (__jj_watch_probe_comments "$tmp")
+
+    # Reviewer marks comment resolved in Critique!
+    set -g mock_comments_state "(resolved)"
+    set -e _jj_watch_comments_last_spawn
+    set -g _jj_watch_comments_last_spawn 0
+
+    set -l probe2 (__jj_watch_probe_comments "$tmp")
+    rm -rf "$tmp"
+
+    if test "$probe1" != "$probe2"
+        echo "pass"
+    else
+        echo "fail: probe1=$probe1 probe2=$probe2"
+    end
+) = pass
+
+@test "__jj_watch_probe_comments isolates state across different workspaces and does not bleed cached tokens" (
+    setup_hermetic_env
+
+    set -l tmpA (mktemp -d)
+    set -l tmpB (mktemp -d)
+    mkdir -p "$tmpA/.jj/repo" "$tmpB/.jj/repo"
+
+    function jj -V tmpA -V tmpB
+        switch "$argv"
+            case "*$tmpA*"
+                echo "commitA:http://cl/1 (1 unresolved)"
+                return 0
+            case "*$tmpB*"
+                echo "commitB:http://cl/2 (clean)"
+                return 0
+            case "*"
+                return 0
+        end
+    end
+
+    set -l probeA (__jj_watch_probe_comments "$tmpA")
+    set -l fileA "$_jj_watch_comments_file"
+
+    set -l probeB (__jj_watch_probe_comments "$tmpB")
+    set -l fileB "$_jj_watch_comments_file"
+
+    rm -rf "$tmpA" "$tmpB"
+
+    # Verify both workspaces got distinct non-empty comment hashes and separate temp files
+    if test "$probeA" != "$probeB"; and test "$fileA" != "$fileB"; and string match -q "*:comments=*" "$probeA"; and string match -q "*:comments=*" "$probeB"
+        echo "pass"
+    else
+        echo "fail: probeA=$probeA probeB=$probeB fileA=$fileA fileB=$fileB"
+    end
+) = pass
+
+@test "__jj_watch_cleanup_comments removes temporary files and resets global comments state" (
+    setup_hermetic_env
+
+    set -l tmp (mktemp -d)
+    mkdir -p "$tmp/.jj/repo"
+
+    function jj
+        echo "commit:http://cl/1 (1 unresolved)"
+        return 0
+    end
+
+    __jj_watch_probe_comments "$tmp" >/dev/null
+    set -l comments_file "$_jj_watch_comments_file"
+    rm -rf "$tmp"
+
+    set -l file_existed_before 1
+    test -f "$comments_file"; and set file_existed_before 0
+
+    __jj_watch_cleanup_comments
+
+    set -l file_existed_after 0
+    test -f "$comments_file"; or set file_existed_after 1
+
+    set -l cache_cleared 0
+    not set -q _jj_watch_comments_cache; and set cache_cleared 1
+
+    set -l ws_cleared 0
+    not set -q _jj_watch_comments_ws; and set ws_cleared 1
+
+    if test $file_existed_before -eq 0; and test $file_existed_after -eq 1; and test $cache_cleared -eq 1; and test $ws_cleared -eq 1
+        echo "pass"
+    else
+        echo "fail: before=$file_existed_before after=$file_existed_after cache=$cache_cleared ws=$ws_cleared"
+    end
+) = pass
+
+

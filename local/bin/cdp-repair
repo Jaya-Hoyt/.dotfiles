@@ -13,7 +13,7 @@
 #   `ssh -O cancel/forward` re-registers the forward on the running master at
 #   runtime, so the tunnel comes back without dropping your remote session.
 #
-# Two OpenSSH quirks this script works around, both verified on this setup:
+# Three OpenSSH behaviours this script works around, all verified on this setup:
 #
 #   1. `ssh -O forward/cancel -R ...` reports failure even when it succeeded.
 #      Observed: cancel printed "port not forwarded" and exit 0 while actually
@@ -25,6 +25,11 @@
 #      and fights the master for those ports ("Address already in use"). Every
 #      probe below therefore passes -o ClearAllForwardings=yes, and
 #      -o RemoteCommand=none to bypass the shpool auto-attach.
+#
+#   3. ConnectTimeout only bounds the TCP connect. It does not apply once ssh
+#      hands off to an existing control socket, so a probe against a half-dead
+#      master -- exactly what this script repairs -- can block until keepalives
+#      expire. Hence the watchdog in __cdp_run.
 #
 # Usage:
 #   cdp-repair                 # check, and repair only if actually broken
@@ -53,6 +58,13 @@ if set -q _flag_help
     exit 0
 end
 
+# --check promises not to change anything and --force is nothing but a change,
+# so honour the contradiction loudly rather than silently letting one win.
+if set -q _flag_force; and set -q _flag_check
+    echo "❌ --force and --check are mutually exclusive." >&2
+    exit 2
+end
+
 set -l host main
 set -q _flag_host; and set host $_flag_host
 
@@ -61,21 +73,64 @@ set -q _flag_port; and set port $_flag_port
 
 set -l fwd "$port:127.0.0.1:$port"
 
+# Seconds to wait before giving up on a probe. See behaviour 3 above.
+set -l probe_timeout 20
+
+# Watchdog: run a command with a hard deadline, writing stdout to outfile.
+# macOS ships no timeout(1) and coreutils is not in the Brewfile, so this is
+# implemented with fish job control rather than taking on a new dependency.
+# Returns 0 if the command finished in time, 1 if it had to be killed.
+function __cdp_run --argument-names seconds outfile
+    set -l cmd $argv[3..-1]
+    $cmd >$outfile 2>/dev/null &
+    set -l pid $last_pid
+    # `_` is read-only in fish 4.x, so the counter needs a real name.
+    for tick in (seq (math "round($seconds * 10)"))
+        if not kill -0 $pid 2>/dev/null
+            wait $pid 2>/dev/null
+            return 0
+        end
+        sleep 0.1
+    end
+    kill -TERM $pid 2>/dev/null
+    sleep 0.2
+    kill -KILL $pid 2>/dev/null
+    wait $pid 2>/dev/null
+    return 1
+end
+
 # Run a command on the remote without inheriting this host's forwards (which the
 # master already owns) and without being hijacked by the shpool RemoteCommand.
-function __cdp_remote --argument-names target command
-    ssh -o RemoteCommand=none \
+function __cdp_remote --argument-names target command timeout
+    set -l out (mktemp)
+    __cdp_run $timeout $out \
+        ssh -o RemoteCommand=none \
         -o ClearAllForwardings=yes \
         -o BatchMode=yes \
-        -o ConnectTimeout=15 \
-        $target $command 2>/dev/null
+        -o ConnectTimeout=10 \
+        $target $command
+    set -l rc $status
+    cat $out
+    rm -f $out
+    return $rc
 end
 
 # Authoritative health check: does the remote actually reach our local Chrome
-# through the tunnel? Checking for a listening socket is not enough -- a stale
-# listener can exist while forwarding nothing.
-function __cdp_healthy --argument-names target port
-    test (__cdp_remote $target "curl -s -o /dev/null -w '%{http_code}' --max-time 5 localhost:$port/json/version") = 200
+# through the tunnel? A listening socket is not enough -- a stale listener can
+# exist while forwarding nothing, so this asks for a real HTTP response.
+#
+# 127.0.0.1 rather than localhost: the forward is pinned to 127.0.0.1, and
+# localhost resolves to ::1 first on macOS, which would probe a different
+# address than the one being forwarded.
+function __cdp_healthy --argument-names target port timeout
+    # The result is assigned before being compared: when the remote command
+    # produces no output (ssh failing or timing out, i.e. the dead-tunnel case
+    # this script exists for) an inline command substitution would expand to
+    # zero arguments and make `test` emit a parse error.
+    set -l code (__cdp_remote $target \
+        "curl -s -o /dev/null -w '%{http_code}' --max-time 5 127.0.0.1:$port/json/version" \
+        $timeout)
+    test "$code" = 200
 end
 
 # --force: tear the master down completely. The next connection rebuilds it from
@@ -95,8 +150,8 @@ end
 #    there's nothing on this end to forward to, and that's a far more common
 #    cause than a broken tunnel.
 echo "🔎 Checking local Chrome on port $port..."
-if not curl -s --max-time 3 "localhost:$port/json/version" >/dev/null 2>&1
-    echo "❌ Nothing is serving CDP on localhost:$port."
+if not curl -s --max-time 3 "127.0.0.1:$port/json/version" >/dev/null 2>&1
+    echo "❌ Nothing is serving CDP on 127.0.0.1:$port."
     echo "   Start Chrome with --remote-debugging-port=$port before repairing"
     echo "   the tunnel; the forward has nothing to connect to right now."
     exit 1
@@ -116,13 +171,13 @@ echo "   ✅ Master is alive."
 # 3. Probe before touching anything. A working tunnel must not be disturbed:
 #    the cancel/forward cycle briefly drops the listener, which would break an
 #    active debugging session for no reason.
-echo "🔎 Testing the tunnel end-to-end..."
-if __cdp_healthy $host $port
+echo "🔎 Testing the tunnel end-to-end (up to "$probe_timeout"s)..."
+if __cdp_healthy $host $port $probe_timeout
     echo "   ✅ Remote reaches your Chrome on port $port."
     echo "🎉 Tunnel is healthy -- nothing to repair."
     exit 0
 end
-echo "   ❌ Remote cannot reach your Chrome. Repairing..."
+echo "   ❌ Remote cannot reach your Chrome."
 
 if set -q _flag_check
     echo "ℹ️  --check specified; stopping without making changes."
@@ -130,15 +185,15 @@ if set -q _flag_check
     exit 1
 end
 
-# 4. Rebind. Exit status is deliberately ignored here (see quirk 1 above) -- both
-#    of these routinely report failure while doing exactly what was asked.
+# 4. Rebind. Exit status is deliberately ignored here (see behaviour 1 above) --
+#    both of these routinely report failure while doing exactly what was asked.
 echo "🔁 Rebinding remote forward $fwd..."
 ssh -O cancel -R $fwd $host 2>/dev/null
 ssh -O forward -R $fwd $host 2>/dev/null
 
 # 5. Re-probe. This, not the exit codes, decides whether the repair worked.
 echo "🔎 Re-testing the tunnel..."
-if __cdp_healthy $host $port
+if __cdp_healthy $host $port $probe_timeout
     echo "   ✅ Remote reaches your Chrome on port $port."
     echo "🎉 CDP tunnel repaired -- your session was left untouched."
     exit 0

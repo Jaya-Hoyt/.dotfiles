@@ -182,6 +182,32 @@ if ! grep -qF "$INCLUDE_LINE" "$SSH_CONFIG"; then
     mv "$TEMP_CONFIG" "$SSH_CONFIG"
 fi
 
+# Warn about forwards declared twice. ~/.ssh/config is not tracked, so a fresh
+# machine or a restored backup can reintroduce a host block that fights the
+# generated scloud_config for the same port. Only one connection can bind it;
+# the loser prints a warning that is easy to miss, and the CDP tunnel silently
+# never works. Detect it here rather than leaving it to be rediagnosed later.
+MANAGED_PORTS=$(grep -oE '^[[:space:]]*(Remote|Local)Forward[[:space:]]+[0-9]+' \
+    "$SCLOUD_CONFIG_DEST" 2>/dev/null | grep -oE '[0-9]+$' | sort -u)
+CONFLICTS=""
+for managed_port in $MANAGED_PORTS; do
+    # Drop the Include line so the generated file is not compared against itself.
+    if grep -vF "$INCLUDE_LINE" "$SSH_CONFIG" 2>/dev/null \
+        | grep -qE "^[[:space:]]*(Remote|Local)Forward[[:space:]]+$managed_port([[:space:]]|$)"; then
+        CONFLICTS="$CONFLICTS $managed_port"
+    fi
+done
+
+if [ -n "$CONFLICTS" ]; then
+    echo "⚠️  ~/.ssh/config redeclares forwards that ~/.ssh/scloud_config owns:"
+    for conflict_port in $CONFLICTS; do
+        echo "      port $conflict_port"
+    done
+    echo "    Only one connection can bind each port. The loser fails with a"
+    echo "    warning that is easy to miss, silently breaking the tunnel."
+    echo "    Remove the duplicate from ~/.ssh/config; the managed file has it."
+fi
+
 
 
 # 5. Install mise tools (non-interactive)

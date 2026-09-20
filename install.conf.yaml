@@ -62,6 +62,7 @@
 
     # Local bin
     ~/.local/bin/angular_switch.ts: local/bin/angular_switch.ts
+    ~/.local/bin/cdp-repair: local/bin/cdp-repair
     ~/.local/bin/dictate: dictate
     ~/.local/bin/gs: local/bin/gs
     ~/.local/bin/jj_watch: local/bin/jj_watch

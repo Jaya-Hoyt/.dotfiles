@@ -1,0 +1,154 @@
+#!/usr/bin/env fish
+#
+# cdp-repair — rebind the Chrome DevTools Protocol remote forward (port 9222)
+# on the live SSH master, without tearing down your shpool/tmux session.
+#
+# Why this exists:
+#   Port forwards belong to the SSH *master* connection, not to your shell. When
+#   the master's TCP connection dies (laptop sleep, wifi/VPN change) the control
+#   socket lingers until keepalives give up, and every new `ssh main` silently
+#   multiplexes onto a master whose tunnel is already dead. Reconnecting your
+#   terminal cannot fix that -- you just reattach to the same broken master.
+#
+#   `ssh -O cancel/forward` re-registers the forward on the running master at
+#   runtime, so the tunnel comes back without dropping your remote session.
+#
+# Two OpenSSH quirks this script works around, both verified on this setup:
+#
+#   1. `ssh -O forward/cancel -R ...` reports failure even when it succeeded.
+#      Observed: cancel printed "port not forwarded" and exit 0 while actually
+#      releasing the port; forward printed "Port forwarding failed" and exit 255
+#      while actually binding it and serving traffic end-to-end. So the exit
+#      status is ignored throughout -- a live probe is the only source of truth.
+#
+#   2. Any `ssh main <cmd>` inherits LocalForward/RemoteForward from the config
+#      and fights the master for those ports ("Address already in use"). Every
+#      probe below therefore passes -o ClearAllForwardings=yes, and
+#      -o RemoteCommand=none to bypass the shpool auto-attach.
+#
+# Usage:
+#   cdp-repair                 # check, and repair only if actually broken
+#   cdp-repair --check         # report health, change nothing
+#   cdp-repair --host gemini   # operate on a different host alias
+#   cdp-repair --port 9333     # use a different CDP port
+#   cdp-repair --force         # kill the master entirely (last resort)
+
+argparse --name=cdp-repair 'h/help' 'H/host=' 'p/port=' 'f/force' 'c/check' -- $argv
+or exit 1
+
+if set -q _flag_help
+    echo "Usage: cdp-repair [--host <alias>] [--port <port>] [--check] [--force]"
+    echo
+    echo "Rebinds the Chrome DevTools Protocol remote forward on the live SSH"
+    echo "master so you don't have to drop your shpool/tmux session."
+    echo
+    echo "Options:"
+    echo "  -H, --host <alias>  SSH host alias to operate on (default: main)"
+    echo "  -p, --port <port>   CDP port to forward (default: 9222)"
+    echo "  -c, --check         Report tunnel health without changing anything."
+    echo "  -f, --force         Terminate the master connection instead of"
+    echo "                      repairing it in place. Use when the in-place"
+    echo "                      repair fails."
+    echo "  -h, --help          Show this help message."
+    exit 0
+end
+
+set -l host main
+set -q _flag_host; and set host $_flag_host
+
+set -l port 9222
+set -q _flag_port; and set port $_flag_port
+
+set -l fwd "$port:127.0.0.1:$port"
+
+# Run a command on the remote without inheriting this host's forwards (which the
+# master already owns) and without being hijacked by the shpool RemoteCommand.
+function __cdp_remote --argument-names target command
+    ssh -o RemoteCommand=none \
+        -o ClearAllForwardings=yes \
+        -o BatchMode=yes \
+        -o ConnectTimeout=15 \
+        $target $command 2>/dev/null
+end
+
+# Authoritative health check: does the remote actually reach our local Chrome
+# through the tunnel? Checking for a listening socket is not enough -- a stale
+# listener can exist while forwarding nothing.
+function __cdp_healthy --argument-names target port
+    test (__cdp_remote $target "curl -s -o /dev/null -w '%{http_code}' --max-time 5 localhost:$port/json/version") = 200
+end
+
+# --force: tear the master down completely. The next connection rebuilds it from
+# scratch, which re-evaluates RemoteForward. This drops your ssh session (the
+# shpool/tmux state on the remote survives), so it's the heavier option.
+if set -q _flag_force
+    echo "💣 Terminating the SSH master for '$host'..."
+    if ssh -O exit $host 2>/dev/null
+        echo "✅ Master terminated. Reconnect with: scloud $host"
+    else
+        echo "ℹ️  No master was running for '$host'. Just connect: scloud $host"
+    end
+    exit 0
+end
+
+# 1. Is Chrome actually serving CDP locally? Repairing the tunnel is pointless if
+#    there's nothing on this end to forward to, and that's a far more common
+#    cause than a broken tunnel.
+echo "🔎 Checking local Chrome on port $port..."
+if not curl -s --max-time 3 "localhost:$port/json/version" >/dev/null 2>&1
+    echo "❌ Nothing is serving CDP on localhost:$port."
+    echo "   Start Chrome with --remote-debugging-port=$port before repairing"
+    echo "   the tunnel; the forward has nothing to connect to right now."
+    exit 1
+end
+echo "   ✅ Chrome is listening locally."
+
+# 2. The runtime repair only works against a running master.
+echo "🔎 Checking the SSH master for '$host'..."
+if not ssh -O check $host 2>/dev/null
+    echo "ℹ️  No master connection is running for '$host'."
+    echo "   Nothing to repair -- the forward is established fresh when you"
+    echo "   connect. Just run: scloud $host"
+    exit 0
+end
+echo "   ✅ Master is alive."
+
+# 3. Probe before touching anything. A working tunnel must not be disturbed:
+#    the cancel/forward cycle briefly drops the listener, which would break an
+#    active debugging session for no reason.
+echo "🔎 Testing the tunnel end-to-end..."
+if __cdp_healthy $host $port
+    echo "   ✅ Remote reaches your Chrome on port $port."
+    echo "🎉 Tunnel is healthy -- nothing to repair."
+    exit 0
+end
+echo "   ❌ Remote cannot reach your Chrome. Repairing..."
+
+if set -q _flag_check
+    echo "ℹ️  --check specified; stopping without making changes."
+    echo "   Run 'cdp-repair' to repair it."
+    exit 1
+end
+
+# 4. Rebind. Exit status is deliberately ignored here (see quirk 1 above) -- both
+#    of these routinely report failure while doing exactly what was asked.
+echo "🔁 Rebinding remote forward $fwd..."
+ssh -O cancel -R $fwd $host 2>/dev/null
+ssh -O forward -R $fwd $host 2>/dev/null
+
+# 5. Re-probe. This, not the exit codes, decides whether the repair worked.
+echo "🔎 Re-testing the tunnel..."
+if __cdp_healthy $host $port
+    echo "   ✅ Remote reaches your Chrome on port $port."
+    echo "🎉 CDP tunnel repaired -- your session was left untouched."
+    exit 0
+end
+
+echo "   ❌ Still unreachable."
+echo
+echo "   The usual cause is a stale listener holding port $port on the remote."
+echo "   A half-dead session keeps its forwarded port until sshd reaps it"
+echo "   (ClientAliveInterval x CountMax, typically ~10 min)."
+echo
+echo "   Next step: cdp-repair --force, then reconnect with 'scloud $host'."
+exit 1

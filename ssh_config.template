@@ -6,6 +6,19 @@ Host main edit gemini
   ForwardAgent yes
   RemoteForward 9222 127.0.0.1:9222
   LocalForward 9998 localhost.corp.google.com:9998
+  # NOTE: do NOT add `ExitOnForwardFailure yes` here. These forwards belong to
+  # the master, so every *secondary* `ssh main` re-requests them and fails --
+  # LocalForward 9998 is already bound locally, RemoteForward 9222 is already
+  # registered. ExitOnForwardFailure turns those harmless warnings into exit 255,
+  # which kills every concurrent session and sends `scloud` into an infinite
+  # reconnect loop. Use `cdp-repair` to detect and fix a dead tunnel instead.
+  # The global /etc/ssh/ssh_config.d/google_ssh_config sets ServerAliveCountMax 20
+  # (10 min). Port forwards belong to the master, so a half-dead master keeps its
+  # control socket around that whole time and new sessions multiplex onto a tunnel
+  # that no longer works. Override it: shpool/tmux make losing the transport cheap,
+  # so fail fast (3 x 30s = 90s) and let the next connect build a fresh master.
+  ServerAliveInterval 30
+  ServerAliveCountMax 3
   ControlMaster auto
   ControlPath ~/.ssh/sockets/%r@%h-%p
   ControlPersist 20h
